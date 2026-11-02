@@ -1,0 +1,20 @@
+# Swift package build output, the project that XcodeGen generates, and Xcode user state.
+.build/
+.swiftpm/
+/CVKEGPS.xcodeproj/
+DerivedData/
+xcuserdata/
+*.xcresult
+/CVKEGPS/Info.plist
+/CVKEGPSWidgets/Info.plist
+/build/
+/captures/
+/attachments-*/
+build.log
+
+# Local tools, test output, and credentials.
+/artifacts/
+__pycache__/
+.DS_Store
+.env
+.env.*

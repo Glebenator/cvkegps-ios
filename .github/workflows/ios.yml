@@ -4,8 +4,8 @@ name: iOS
 
 on:
   push:
-    branches: [claude/android-to-ios-port-g3ohdc]
-    paths: ["ios/**", ".github/workflows/ios.yml"]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
       - name: Show the toolchain
         run: xcodebuild -version && swift --version
       - name: Test the measurement rules
-        working-directory: ios/CVKEGPSCore
+        working-directory: CVKEGPSCore
         run: swift test
 
   app:
@@ -37,7 +37,6 @@ jobs:
           xcodebuild -version
           xcrun simctl list runtimes
       - name: Generate the project
-        working-directory: ios
         run: |
           brew install xcodegen
           xcodegen generate
@@ -56,7 +55,6 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Build
         id: build
-        working-directory: ios
         run: |
           set -o pipefail
           xcodebuild build-for-testing -project CVKEGPS.xcodeproj -scheme CVKEGPS \
@@ -65,14 +63,12 @@ jobs:
           grep -q "TEST BUILD SUCCEEDED" build.log
       - name: Show build errors
         if: failure()
-        working-directory: ios
         run: |
           grep -E "error:" build.log | sort -u | head -150 || true
           # A compiler crash has no error line. Its stack dump names the file and the function.
           grep -E "While (evaluating|emitting|type-checking)|Apple Swift version" build.log | head -20 || true
       - name: Run the UI flow in light mode
         id: flow
-        working-directory: ios
         run: |
           set -o pipefail
           xcrun simctl ui "${{ steps.sim.outputs.udid }}" appearance light
@@ -81,7 +77,6 @@ jobs:
             -only-testing:CVKEGPSUITests/TripFlowUITests/test1RecordAndReplayTrip -resultBundlePath light.xcresult | tail -40
       - name: Run the screens in dark mode
         if: always() && steps.build.outcome == 'success'
-        working-directory: ios
         run: |
           set -o pipefail
           xcrun simctl ui "${{ steps.sim.outputs.udid }}" appearance dark
@@ -90,7 +85,6 @@ jobs:
             -only-testing:CVKEGPSUITests/TripFlowUITests/test2Screens -resultBundlePath dark.xcresult | tail -40
       - name: Run the screens with the largest text
         if: always() && steps.build.outcome == 'success'
-        working-directory: ios
         run: |
           set -o pipefail
           xcrun simctl ui "${{ steps.sim.outputs.udid }}" appearance light
@@ -101,7 +95,6 @@ jobs:
           xcrun simctl ui "${{ steps.sim.outputs.udid }}" content_size large
       - name: Export the screenshots
         if: always()
-        working-directory: ios
         run: |
           for run in light dark large; do
             if [ -d "$run.xcresult" ]; then
@@ -115,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-captures
-          path: ios/captures
+          path: captures
           if-no-files-found: warn
       - name: Upload the test results
         if: failure()
@@ -123,6 +116,6 @@ jobs:
         with:
           name: ios-test-results
           path: |
-            ios/*.xcresult
-            ios/build.log
+            *.xcresult
+            build.log
           if-no-files-found: ignore

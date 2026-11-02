@@ -2,8 +2,17 @@
 
 The native iOS app: a speedometer and trip recorder with SwiftUI, Apple Maps, and the Liquid Glass design of iOS 26.
 It has the same measurement rules and product behaviour as the Android app. See
-[ADR 0007](../docs/adr/0007-build-the-ios-app-with-apple-maps-and-a-shared-swift-core.md) for the decisions and the
-platform differences, and [PROGRESS.html](../PROGRESS.html#ios-app) for the test evidence.
+[ADR 0007](https://github.com/Glebenator/cvkegps/blob/main/docs/adr/0007-build-the-ios-app-with-apple-maps-and-a-shared-swift-core.md) for the decisions and the
+platform differences, and [PROGRESS.html](https://github.com/Glebenator/cvkegps/blob/main/PROGRESS.html#ios-app) for the test evidence.
+
+CVKE GPS has three repositories:
+
+- [cvkegps](https://github.com/Glebenator/cvkegps): the product. Decisions (ADRs), the glossary, the shared
+  measurement rules, and the progress report.
+- [cvkegps-android](https://github.com/Glebenator/cvkegps-android): the Android app.
+- [cvkegps-ios](https://github.com/Glebenator/cvkegps-ios): this repository, the iOS app.
+
+Until 2 November 2026, the iOS app was in the `ios/` folder of `cvkegps`. This repository keeps its history.
 
 ## Open and run
 
@@ -24,7 +33,7 @@ The app needs no API key. Apple Maps receives the map area that you look at. Tri
 - The UI flow: `xcodebuild test -project CVKEGPS.xcodeproj -scheme CVKEGPS -destination "platform=iOS Simulator,name=<iPhone>"`.
   It uses the production Core Location path with simulated locations from XCTest. It records a trip along a street,
   stops and saves it, replays it, and opens Settings. Each step attaches a screenshot.
-- The workflow `.github/workflows/ios.yml` does both on a macOS runner. It runs the screens again in dark mode and with
+- The workflow `.github/workflows/ios.yml` does both on a macOS runner, for each push to `main` and each pull request. It runs the screens again in dark mode and with
   the largest text size, and uploads the screenshots as the `ios-captures` artifact.
 
 Simulator results are functional evidence only. GPS accuracy, the fix source rule, recording with the screen locked,
@@ -33,7 +42,7 @@ the Live Activity, the motion sensors, and battery use need a real iPhone.
 ## Structure
 
 ```text
-ios/
+cvkegps-ios/
   project.yml                     XcodeGen project: the app, the widget extension, and the UI tests
   CVKEGPSCore/                    Swift package, Foundation only
     TripModels.swift, Measurements.swift, Units.swift    Models, the usability rules, and units

@@ -98,7 +98,7 @@ public struct ReplaySegment: Sendable {
 }
 
 /// A saved trip, ready to replay. The replay clock joins the segments without the pauses between them.
-/// Each value comes from stored measurements. See GLOSSARY.md.
+/// Each value comes from stored measurements. See GLOSSARY.md in the cvkegps repository.
 public struct TripReplay: Sendable {
     public let durationNanos: Int64
     /// Replay times where a segment after the first starts. A pause or an interruption was there.

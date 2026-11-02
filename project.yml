@@ -1,5 +1,5 @@
 # XcodeGen project for the iOS app. Run `xcodegen generate` in this folder to make CVKEGPS.xcodeproj.
-# The generated project is not in Git. See ios/README.md.
+# The generated project is not in Git. See README.md.
 name: CVKEGPS
 options:
   bundleIdPrefix: com.example

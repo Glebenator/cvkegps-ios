@@ -1,12 +1,12 @@
 import Foundation
 
-/// The receiver that measured a fix. Only `gps` fixes give speed, direction, and height. See GLOSSARY.md.
+/// The receiver that measured a fix. Only `gps` fixes give speed, direction, and height. See GLOSSARY.md in the cvkegps repository.
 public enum FixSource: String, Hashable, Sendable {
     case gps = "Gps"
     case network = "Network"
 }
 
-/// The usability limits. See GLOSSARY.md.
+/// The usability limits. See GLOSSARY.md in the cvkegps repository.
 public enum UsabilityLimits {
     public static let maxHorizontalErrorMeters = 50.0
     public static let maxSpeedErrorMetersPerSecond = 3.0
