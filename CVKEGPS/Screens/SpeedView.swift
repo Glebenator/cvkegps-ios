@@ -7,6 +7,7 @@ struct SpeedView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayFormat) private var format
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         GeometryReader { geometry in
@@ -58,8 +59,22 @@ struct SpeedView: View {
             }
         }
         .toolbarTitleDisplayMode(.inline)
-        .onAppear { model.location.display(true) }
-        .onDisappear { model.location.display(false) }
+        .onAppear {
+            model.location.display(true)
+            model.location.compass(scenePhase == .active)
+            updateCompassOrientation()
+        }
+        .onDisappear {
+            model.location.display(false)
+            model.location.compass(false)
+        }
+        .onChange(of: scenePhase) { _, phase in model.location.compass(phase == .active) }
+        .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { _ in updateCompassOrientation() }
+    }
+
+    private func updateCompassOrientation() {
+        guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation else { return }
+        model.location.setCompassOrientation(orientation)
     }
 
     /// Two readings as plain text on the backdrop, with a thin line between them. Glass is only for controls.
