@@ -238,41 +238,31 @@ struct GpsCard: View {
         VStack(spacing: Space.s3) {
             NavigationLink(value: AppRoute.gpsDetails) {
                 if speed.ready {
-                    // A row on the backdrop, like the readings above it, with a name and the value, so the bar does not
-                    // need explaining. VoiceOver reads the bar's own label.
+                    // A row on the backdrop, like the readings above it. The comet on the speed circle shows the accuracy.
                     HStack(spacing: Space.s3) {
-                        Text("GPS").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
-                        AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters, showsLabel: false)
+                        Text("GPS").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        Spacer()
                         if let accuracy = speed.reading?.accuracyMeters {
                             Text("±\(format.decimal(accuracy)) m")
                                 .font(.footnote.monospacedDigit())
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                                 .fixedSize()
-                                .accessibilityHidden(true)
                         }
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(spokenLabel ?? Text("GPS"))
                     .padding(.horizontal, Space.s2)
                     .frame(minHeight: Size.touch)
                     .contentShape(.rect)
                     .accessibilityIdentifier("gps_compact")
+                } else if speed.status == .live {
+                    fullCard
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(spokenLabel ?? Text("GPS connected"))
                 } else {
-                    GlassCard {
-                        VStack(alignment: .leading, spacing: Space.s2) {
-                            HStack(spacing: Space.s2) {
-                                StatusDot(color: color)
-                                Text(title).font(.headline).accessibilityIdentifier("gps_status")
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                            }
-                            if speed.status == .live {
-                                AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters)
-                            } else {
-                                Text(message).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
+                    fullCard
                 }
             }
             .buttonStyle(.plain)
@@ -287,6 +277,48 @@ struct GpsCard: View {
                 .accessibilityIdentifier("gps_action")
             }
         }
+    }
+
+    /// The full card. In the live state, it shows the position accuracy as text.
+    private var fullCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: Space.s2) {
+                HStack(spacing: Space.s2) {
+                    StatusDot(color: color)
+                    Text(title).font(.headline).accessibilityIdentifier("gps_status")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                if speed.status == .live {
+                    if let accuracy = speed.reading?.accuracyMeters {
+                        Text("Position accuracy ±\(format.decimal(accuracy)) m")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(message).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// One spoken sentence: the position accuracy and, when the device moves, the direction of travel.
+    private var spokenLabel: Text? {
+        guard let reading = speed.reading, let accuracy = reading.accuracyMeters else { return nil }
+        let base = String(localized: "GPS position accuracy ±\(format.decimal(accuracy)) metres.")
+        guard let radians = reading.travelRadians else { return Text(base) }
+        let point: String = switch CompassPoint(radians: radians) {
+        case .north: String(localized: "north")
+        case .northEast: String(localized: "north-east")
+        case .east: String(localized: "east")
+        case .southEast: String(localized: "south-east")
+        case .south: String(localized: "south")
+        case .southWest: String(localized: "south-west")
+        case .west: String(localized: "west")
+        case .northWest: String(localized: "north-west")
+        }
+        return Text(base + " " + String(localized: "Moving \(point)."))
     }
 
     /// Live is success. A state that needs time or an action is a warning. A failure is danger. Paused is neutral.
