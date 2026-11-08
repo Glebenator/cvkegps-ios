@@ -45,10 +45,12 @@ struct TripsView: View {
                         .accessibilityIdentifier("saved_trip")
                     }
                 } header: {
-                    // A plain list already gives its headers the secondary colour. A second `.secondary` made it the
-                    // tertiary colour, with a contrast of 1.7:1.
+                    // `.secondary` in a plain list header gave the tertiary colour (1.7:1), and the list's own secondary
+                    // colour is 3.3:1. `inkMuted` is 5.6:1 in light mode, 7.6:1 in dark mode, and stronger with Increase
+                    // Contrast, so the 13-point header meets 4.5:1.
                     Text(TripDay.title(group.day))
                         .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.inkMuted)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("trip_day")
                 }
