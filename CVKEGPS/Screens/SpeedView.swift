@@ -17,7 +17,7 @@ struct SpeedView: View {
             Group {
                 if wide {
                     HStack(spacing: Space.s6) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet)
                         ScrollView {
                             VStack(spacing: Space.s3) {
                                 metrics
@@ -33,7 +33,7 @@ struct SpeedView: View {
                     // The largest text sizes need more height than the screen has. The values then scroll under a smaller dial.
                     ScrollView {
                         VStack(spacing: Space.s3) {
-                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(height: 240)
+                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet).frame(height: 240)
                             metrics
                             gpsCard
                             tripControls
@@ -41,7 +41,7 @@ struct SpeedView: View {
                     }
                 } else {
                     VStack(spacing: Space.s3) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(maxHeight: .infinity)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet).frame(maxHeight: .infinity)
                         metrics
                         gpsCard
                         tripControls
@@ -80,6 +80,11 @@ struct SpeedView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             updateCompassOrientation()
         }
+    }
+
+    /// The comet for a live reading, or nil. Without a current compass, the comet rests.
+    private var comet: GpsComet? {
+        GpsComet.make(reading: model.speed.reading, live: model.speed.status == .live, heading: model.location.heading)
     }
 
     /// Reads the interface orientation on the next main-actor turn, after the rotation has applied.
@@ -148,15 +153,18 @@ struct SpeedView: View {
 /// speed, so the digits can be larger. VoiceOver still hears "Current speed". A dash shows a missing speed at a normal size,
 /// so it does not look like a bar, and without a unit, so it does not look like a value.
 /// The digits are content, so the circle is a standard material of the content layer, not Liquid Glass, which is for
-/// floating controls. The circle has no colour and no animation, so only the number changes.
+/// floating controls. The GPS comet on the edge of the circle shows the position accuracy and the direction of travel.
+/// The circle keeps space for the comet in its frame, so the comet does not cover the readings. Without a comet, the
+/// circle has no colour.
 struct SpeedDial: View {
     var speed: Double?
+    var comet: GpsComet?
     @Environment(\.displayFormat) private var format
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         GeometryReader { geometry in
-            let diameter = min(geometry.size.width, geometry.size.height, 320)
+            let diameter = min(min(geometry.size.width, geometry.size.height) - 2 * SpeedComet.reach, 320)
             VStack(spacing: Space.s1) {
                 if let speed {
                     Text(format.speedNumber(speed))
@@ -180,6 +188,8 @@ struct SpeedDial: View {
                     .shadow(color: .black.opacity(0.08), radius: 24, y: 8)
                     .accessibilityHidden(true)
             }
+            // The comet is behind the circle. It is in a separate background, so it does not change the circle size.
+            .background { if let comet { SpeedComet(comet: comet, diameter: diameter) } }
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
         .frame(minHeight: 120)
