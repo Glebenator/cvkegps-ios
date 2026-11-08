@@ -8,6 +8,8 @@ struct SpeedView: View {
     @Environment(\.displayFormat) private var format
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
+    /// True while the Speed tab is shown. The view stays alive in the tab bar, so the compass must check this.
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -60,21 +62,33 @@ struct SpeedView: View {
         }
         .toolbarTitleDisplayMode(.inline)
         .onAppear {
+            shown = true
             model.location.display(true)
             model.location.compass(scenePhase == .active)
+            // Device orientation changes tell the compass about 180 degree turns, which do not change the view size.
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
             updateCompassOrientation()
         }
         .onDisappear {
+            shown = false
             model.location.display(false)
             model.location.compass(false)
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
         }
-        .onChange(of: scenePhase) { _, phase in model.location.compass(phase == .active) }
+        .onChange(of: scenePhase) { _, phase in model.location.compass(shown && phase == .active) }
         .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { _ in updateCompassOrientation() }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            updateCompassOrientation()
+        }
     }
 
+    /// Reads the interface orientation on the next main-actor turn, after the rotation has applied.
     private func updateCompassOrientation() {
-        guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation else { return }
-        model.location.setCompassOrientation(orientation)
+        Task { @MainActor in
+            guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation
+            else { return }
+            model.location.setCompassOrientation(orientation)
+        }
     }
 
     /// Two readings as plain text on the backdrop, with a thin line between them. Glass is only for controls.
