@@ -204,7 +204,7 @@ private struct LiveDetailsSheet: View {
                     TripTotalsRows(distance: trip.distanceMeters, duration: state.elapsedNanos(at: MonotonicClock.nanos()),
                                    maximum: summary?.maximumSpeedMetersPerSecond)
                 } footer: {
-                    Text(activityEstimateNote)
+                    ActivityEstimateNote()
                 }
                 Section("Technical details") {
                     LabeledContent(reference == .seaLevel ? "Altitude above sea level" : "GPS height (WGS 84)",

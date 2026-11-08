@@ -80,7 +80,11 @@ extension TripRecord {
 }
 
 /// Why the activity can be wrong. It shows in the trip details, below the activity.
-let activityEstimateNote: LocalizedStringKey = "The app estimates the activity from your GPS speed. Some activities have similar speeds, for example car and transit. Select the correct activity if necessary."
+struct ActivityEstimateNote: View {
+    var body: some View {
+        Text("The app estimates the activity from your GPS speed. Some activities have similar speeds, for example car and transit. Select the correct activity if necessary.")
+    }
+}
 
 extension TripMode {
     /// The full activity choice for VoiceOver, where a chip shows only the short name.

@@ -372,7 +372,7 @@ private struct SavedDetailsSheet: View {
                     TripTotalsRows(distance: detail.summary.distanceMeters, duration: detail.trip.durationNanos,
                                    maximum: detail.summary.maximumSpeedMetersPerSecond)
                 } footer: {
-                    Text(activityEstimateNote)
+                    ActivityEstimateNote()
                 }
                 Section {
                     LabeledContent("Saved positions", value: format.whole(detail.positions))
