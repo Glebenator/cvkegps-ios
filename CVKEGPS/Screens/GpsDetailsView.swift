@@ -2,7 +2,8 @@ import CVKEGPSCore
 import SwiftUI
 
 /// Reading quality and the location request. It shares the Speed tab's request. iOS reports no satellites or receiver
-/// events, so this screen has no satellite sky map.
+/// events, so this screen has no satellite sky map. It does not explain the Android satellite features, because iOS users
+/// never see them.
 struct GpsDetailsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayFormat) private var format
@@ -18,7 +19,6 @@ struct GpsDetailsView: View {
                 Text("The bar is empty at 50 m or more and full at 1 m or less. The notch marks 5 m. These are display references, not receiver limits. A full bar does not guarantee accuracy.")
             }
             Section {
-                LabeledContent("Source", value: String(localized: "Core Location"))
                 LabeledContent("Requested accuracy", value: model.location.highAccuracy
                     ? String(localized: "Best for navigation") : String(localized: "Best"))
                 LabeledContent("Location access", value: model.location.preciseAccess
@@ -45,13 +45,6 @@ struct GpsDetailsView: View {
                 Text("Current reading quality")
             } footer: {
                 Text("Accuracy values are iOS estimates, not guaranteed error limits. Direction is measured clockwise from true north. It is not the phone compass. Values clear after 10 seconds without a fresh reading.")
-            }
-            Section {
-                Text("iOS does not report satellites, signal levels, or receiver events to apps. The satellite ring and the sky map of the Android app are therefore not available.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Satellites")
             }
         }
         .navigationTitle("GPS details")

@@ -5,19 +5,20 @@ import UIKit
 /// The design-language colour tokens of the Android app, as dynamic colours for light and dark mode.
 /// Electric blue is the one accent. Status, data, and brand colours never change.
 enum Palette {
-    static let accent = dynamic(light: 0x0A5CFF, dark: 0x6F9BFF)
-    /// The fill of a prominent button. White text on it has a contrast of 5.3:1 in light mode and 4.9:1 in dark mode.
+    static let accent = dynamic(light: 0x0A5CFF, dark: 0x6F9BFF, lightHigh: 0x0040B8, darkHigh: 0xA3BFFF)
+    /// The fill of a prominent button. White text on it has a contrast of 5.3:1 in light mode and 4.9:1 in dark mode
+    /// (8.7:1 and 6.6:1 with Increase Contrast).
     /// The dark `accent` is for text and icons on dark surfaces; white text on it is only 2.7:1.
-    static let accentFill = dynamic(light: 0x0A5CFF, dark: 0x2F66F2)
+    static let accentFill = dynamic(light: 0x0A5CFF, dark: 0x2F66F2, lightHigh: 0x0040B8, darkHigh: 0x1E4FD8)
     static let accentSubtle = dynamic(light: 0xE5EDFF, dark: 0x132552)
     static let brandApricotSubtle = dynamic(light: 0xFDE9DC, dark: 0x3A2012)
-    static let ink = dynamic(light: 0x161A1F, dark: 0xE9EDF1)
-    static let success = dynamic(light: 0x1A7F4B, dark: 0x5FD39A)
-    static let warning = dynamic(light: 0x9A5B00, dark: 0xF5B14C)
+    static let ink = dynamic(light: 0x161A1F, dark: 0xE9EDF1, lightHigh: 0x000000, darkHigh: 0xFFFFFF)
+    static let success = dynamic(light: 0x1A7F4B, dark: 0x5FD39A, lightHigh: 0x0F5C35, darkHigh: 0x8BE6B8)
+    static let warning = dynamic(light: 0x9A5B00, dark: 0xF5B14C, lightHigh: 0x6E4000, darkHigh: 0xFFCB7A)
     static let warningSubtle = dynamic(light: 0xFBF0DC, dark: 0x33270F)
-    static let danger = dynamic(light: 0xB42318, dark: 0xF97066)
+    static let danger = dynamic(light: 0xB42318, dark: 0xF97066, lightHigh: 0x8A1A12, darkHigh: 0xFFA39B)
     static let dangerSubtle = dynamic(light: 0xFDECEA, dark: 0x3A1614)
-    static let inkMuted = dynamic(light: 0x5B6470, dark: 0x9FA9B4)
+    static let inkMuted = dynamic(light: 0x5B6470, dark: 0x9FA9B4, lightHigh: 0x3E4651, darkHigh: 0xC4CCD5)
     static let surfaceSunken = dynamic(light: 0xEEF0F3, dark: 0x0D1014)
     static let background = dynamic(light: 0xF6F7F9, dark: 0x12161B)
     static let brandApricot = dynamic(light: 0xD9661F, dark: 0xF5A578)
@@ -29,9 +30,14 @@ enum Palette {
     /// An old position.
     static let oldPosition = Color(rgb: SpeedRamp.noSpeed)
 
-    static func dynamic(light: UInt32, dark: UInt32) -> Color {
+    /// A colour for light and dark mode. With Increase Contrast on, a token with `lightHigh` and `darkHigh` uses those
+    /// stronger values. They have a contrast of 7:1 or more on `background`.
+    static func dynamic(light: UInt32, dark: UInt32, lightHigh: UInt32? = nil, darkHigh: UInt32? = nil) -> Color {
         Color(uiColor: UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+            let isDark = traits.userInterfaceStyle == .dark
+            let high = traits.accessibilityContrast == .high
+            if high, let strong = isDark ? darkHigh : lightHigh { return UIColor(rgb: strong) }
+            return UIColor(rgb: isDark ? dark : light)
         })
     }
 

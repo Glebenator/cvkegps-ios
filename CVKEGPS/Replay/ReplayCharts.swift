@@ -104,8 +104,16 @@ struct ChartSpec: Identifiable {
     var zeroLine: Bool
     var summary: String
     var label: (Double) -> String
+    /// The value in the display unit, and back. The axis values are round in the display unit (`ChartTicks`).
+    var toDisplay: (Double) -> Double = { $0 }
+    var fromDisplay: (Double) -> Double = { $0 }
 
     var id: ReplayChartKind { kind }
+
+    /// Round axis values in the display unit, as SI values for the chart.
+    var ticks: [Double] {
+        ChartTicks.values(low: toDisplay(low), high: toDisplay(high), count: 3).map(fromDisplay)
+    }
 
     /// The one displayed value when all values look the same in display units, such as a flat height. Nil when they change.
     var steady: String? {
@@ -118,9 +126,12 @@ struct ChartSpec: Identifiable {
     static func all(_ trip: TripReplay, heightOffset: Double, format: DisplayFormat) -> [ChartSpec] {
         var specs: [ChartSpec] = []
         let speedHigh = max(trip.speed.compactMap { $0.values.max() }.max() ?? 1, 1)
+        let speedFactor = format.units.speed.perMetrePerSecond
+        let altitudeMetres = format.units.altitude.metres
         specs.append(ChartSpec(kind: .speed, runs: trip.speed, gaps: trip.gpsGaps, approximate: trip.approximate,
                                moments: trip.moments.filter { $0.kind == .fastestSpeed }, low: 0, high: speedHigh * 1.1, zeroLine: false,
-                               summary: summary(.speed, trip.speed, format, heightOffset), label: { format.speed($0) }))
+                               summary: summary(.speed, trip.speed, format, heightOffset), label: { format.speed($0) },
+                               toDisplay: { $0 * speedFactor }, fromDisplay: { $0 / speedFactor }))
         if !trip.height.isEmpty {
             let low = trip.height.compactMap { $0.values.min() }.min() ?? 0
             let high = trip.height.compactMap { $0.values.max() }.max() ?? 0
@@ -131,7 +142,8 @@ struct ChartSpec: Identifiable {
                                    approximate: [], moments: trip.moments.filter { $0.kind == .highestPoint },
                                    low: middle - half, high: middle + half, zeroLine: false,
                                    summary: summary(.height, trip.height, format, heightOffset),
-                                   label: { format.altitude($0 - heightOffset) }))
+                                   label: { format.altitude($0 - heightOffset) },
+                                   toDisplay: { ($0 - heightOffset) / altitudeMetres }, fromDisplay: { $0 * altitudeMetres + heightOffset }))
         }
         if !trip.acceleration.isEmpty {
             let extreme = max((trip.acceleration.compactMap { $0.values.map(abs).max() }.max() ?? 1) * 1.1, 1)
@@ -217,7 +229,7 @@ private struct ReplayChart: View {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisGridLine() }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+            AxisMarks(position: .leading, values: spec.ticks) { value in
                 AxisGridLine()
                 AxisValueLabel { if let number = value.as(Double.self) { Text(spec.label(number)) } }
             }

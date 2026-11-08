@@ -53,8 +53,7 @@ struct SpeedView: View {
         .background { BrandBackdrop() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel(Text("Settings"))
+                Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
                     .accessibilityIdentifier("open_settings")
             }
         }
@@ -116,12 +115,15 @@ struct SpeedView: View {
     }
 }
 
-/// The large speed in a glass circle. As on Android, the dial has no title: the tab and the unit say that the number is the
+/// The large speed in a circle. As on Android, the dial has no title: the tab and the unit say that the number is the
 /// speed, so the digits can be larger. VoiceOver still hears "Current speed". A dash shows a missing speed at a normal size,
 /// so it does not look like a bar, and without a unit, so it does not look like a value.
+/// The digits are content, so the circle is a standard material of the content layer, not Liquid Glass, which is for
+/// floating controls. The circle has no colour and no animation, so only the number changes.
 struct SpeedDial: View {
     var speed: Double?
     @Environment(\.displayFormat) private var format
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         GeometryReader { geometry in
@@ -141,7 +143,14 @@ struct SpeedDial: View {
             }
             .padding(diameter * (diameter >= 240 ? 0.1 : 0.08))
             .frame(width: diameter, height: diameter)
-            .glassEffect(.regular, in: .circle)
+            .background {
+                // With Increase Contrast, an outline shows the edge of the circle on the backdrop.
+                Circle()
+                    .fill(.regularMaterial)
+                    .overlay { if contrast == .increased { Circle().strokeBorder(.secondary, lineWidth: 1) } }
+                    .shadow(color: .black.opacity(0.08), radius: 24, y: 8)
+                    .accessibilityHidden(true)
+            }
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
         .frame(minHeight: 120)
@@ -184,18 +193,30 @@ struct GpsCard: View {
     var speed: SpeedModel
     var location: LocationService
     var trips: TripController
+    @Environment(\.displayFormat) private var format
 
     var body: some View {
         VStack(spacing: Space.s3) {
             NavigationLink(value: AppRoute.gpsDetails) {
                 if speed.ready {
-                    HStack(spacing: Space.s2) {
+                    // A row on the backdrop, like the readings above it, with a name and the value, so the bar does not
+                    // need explaining. VoiceOver reads the bar's own label.
+                    HStack(spacing: Space.s3) {
+                        Text("GPS").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
                         AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters, showsLabel: false)
+                        if let accuracy = speed.reading?.accuracyMeters {
+                            Text("±\(format.decimal(accuracy)) m")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
+                                .accessibilityHidden(true)
+                        }
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, Space.s4)
+                    .padding(.horizontal, Space.s2)
                     .frame(minHeight: Size.touch)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .contentShape(.rect)
                     .accessibilityIdentifier("gps_compact")
                 } else {
                     GlassCard {

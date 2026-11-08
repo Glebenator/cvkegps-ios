@@ -39,8 +39,7 @@ struct LiveTripView: View {
         .toolbar {
             if state.trip != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { details = true } label: { Image(systemName: "info.circle") }
-                        .accessibilityLabel(Text("Trip details"))
+                    Button { details = true } label: { Label("Trip details", systemImage: "info.circle") }
                         .accessibilityIdentifier("trip_details")
                 }
             }
@@ -134,9 +133,11 @@ extension LiveTripView {
 
     /// The activity icon and its short name, as on Android. VoiceOver hears the full activity text.
     fileprivate func activityChip(_ trip: TripRecord) -> some View {
-        ActivityChip(text: trip.mode.title, symbol: trip.mode.symbol, trailing: "chevron.down", spoken: trip.activityText) {
-            model.trips.activityChoice = .trip(trip.id)
+        ActivityMenu(selection: trip.chosenMode, spoken: trip.activityText, hint: "Changes the activity of this trip",
+                     choose: { model.trips.chooseActivity($0, for: .trip(trip.id)) }) {
+            ActivityMenuLabel(text: trip.mode.title, symbol: trip.mode.symbol)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -149,6 +150,8 @@ private struct LiveValue<Content: View>: View {
     var large = false
     var spoken: String?
     @ViewBuilder var content: Content
+    /// The large speed grows with the text size, so it stays larger than the time and the distance.
+    @ScaledMetric(relativeTo: .largeTitle) private var largeSize: CGFloat = 34
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -156,7 +159,7 @@ private struct LiveValue<Content: View>: View {
             HStack(alignment: .lastTextBaseline, spacing: Space.s1) {
                 if Content.self == EmptyView.self {
                     Text(value ?? "—")
-                        .font(large ? .system(size: 34, weight: .medium, design: .rounded) : .title2.weight(.medium))
+                        .font(large ? .system(size: largeSize, weight: .medium, design: .rounded) : .title2.weight(.medium))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
@@ -193,10 +196,15 @@ private struct LiveDetailsSheet: View {
             List {
                 Section {
                     LabeledContent("Activity") {
-                        Button(trip.activityText) { model.trips.activityChoice = .trip(trip.id) }
+                        ActivityMenu(selection: trip.chosenMode, spoken: trip.activityText, hint: "Changes the activity of this trip",
+                                     choose: { model.trips.chooseActivity($0, for: .trip(trip.id)) }) {
+                            Text(trip.activityText)
+                        }
                     }
                     TripTotalsRows(distance: trip.distanceMeters, duration: state.elapsedNanos(at: MonotonicClock.nanos()),
                                    maximum: summary?.maximumSpeedMetersPerSecond)
+                } footer: {
+                    ActivityEstimateNote()
                 }
                 Section("Technical details") {
                     LabeledContent(reference == .seaLevel ? "Altitude above sea level" : "GPS height (WGS 84)",

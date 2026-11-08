@@ -43,7 +43,7 @@ struct SettingsView: View {
                     Text("Altitude reference")
                 } footer: {
                     Text(values.altitudeReference == .seaLevel
-                         ? "Height above mean sea level, as Core Location reports it."
+                         ? "Height above mean sea level, as iOS reports it."
                          : "The height that the GPS receiver reports, above the WGS 84 ellipsoid. It can differ from sea level by up to 100 m.")
                 }
 

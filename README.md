@@ -35,6 +35,8 @@ The workflow [`ios.yml`](.github/workflows/ios.yml) runs for each push to `main`
 | UI flow: permission, live speed, record, stop and save, replay, Settings | `test1RecordAndReplayTrip`, light mode | Yes |
 | Main screens in dark mode | `test2Screens` | Yes |
 | Main screens at the largest accessibility text size | `test2Screens` | Yes |
+| Main screens with Increase Contrast | `test2Screens` | Yes |
+| Speed, saved trip, and replay in landscape | `test3Landscape` | Yes |
 | Real iPhone checks | Manual | No |
 
 Each run uploads the screenshots of the UI flow as the `ios-captures` artifact.
