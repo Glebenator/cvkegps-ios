@@ -43,8 +43,10 @@ Each run uploads the screenshots of the UI flow as the `ios-captures` artifact.
 
 ## Features
 
-- **Speed.** The current GPS speed in a large dial, with altitude, maximum speed, and a position accuracy bar. An old or
-  poor reading shows as unavailable, never as a current speed.
+- **Speed.** The current GPS speed in a large dial, with altitude and maximum speed. A GPS comet on the rim of the dial
+  shows the direction of travel (from the compass, while the Speed tab is open) and the position accuracy (a short,
+  sharp comet means a good fix). The GPS row shows the accuracy as a number. An old or poor reading shows as
+  unavailable, never as a current speed.
 - **Trip recording.** Start trip and the activity in the bar above the tabs. Pause, resume, and stop from the recording
   bar or from the Live Activity on the Lock Screen and in the Dynamic Island. After Stop and save, you can resume the
   trip for 2 minutes.
@@ -62,7 +64,8 @@ Each run uploads the screenshots of the UI flow as the `ios-captures` artifact.
 
 ### Differences from Android
 
-iOS reports no satellites, so the satellite ring, the sky map, and the satellite details are Android only. A Live
+iOS reports no satellites, so the satellite ring, the sky map, and the satellite details are Android only. The app
+shows a GPS comet on the speed dial in place of the satellite ring. A Live
 Activity replaces the Android notification. Apple Maps has no style files and no terrain map, and iOS has no wallpaper
 colours. [ADR 0007](https://github.com/Glebenator/cvkegps/blob/main/docs/adr/0007-build-the-ios-app-with-apple-maps-and-a-shared-swift-core.md)
 has the full list and the reasons.
@@ -100,7 +103,8 @@ The app needs no API key.
   ```
 
 Simulator results are functional evidence only. GPS accuracy, the fix source rule, recording with the screen locked,
-the Live Activity, the motion sensors, and battery use need a real iPhone.
+the Live Activity, the motion sensors, the compass behaviour of the GPS comet, and battery use need a real iPhone.
+The simulator has no compass, so it shows only the resting comet.
 
 ## Location, battery, and privacy
 
