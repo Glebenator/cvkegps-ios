@@ -69,6 +69,7 @@ final class TripFlowUITests: XCTestCase {
         expectation(for: live, evaluatedWith: speed)
         waitForExpectations(timeout: 20)
         capture("speed-live")
+        XCTAssertTrue(element("gps_card").label.contains("GPS position accuracy"), "GPS card label: \(element("gps_card").label)")
 
         element("gps_card").tap()
         waitFor(app.navigationBars["GPS details"])
