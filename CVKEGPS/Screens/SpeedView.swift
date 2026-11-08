@@ -227,6 +227,15 @@ struct Reading: View {
     }
 }
 
+/// Replaces the spoken label of the view when a label exists.
+private struct SpokenOverride: ViewModifier {
+    var label: Text?
+
+    func body(content: Content) -> some View {
+        if let label { content.accessibilityLabel(label) } else { content }
+    }
+}
+
 /// The GPS state. The whole card opens GPS details. A fresh position of 5 m or better reduces the card to its bar.
 struct GpsCard: View {
     var speed: SpeedModel
@@ -251,21 +260,18 @@ struct GpsCard: View {
                         }
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(spokenLabel ?? Text("GPS"))
                     .padding(.horizontal, Space.s2)
                     .frame(minHeight: Size.touch)
                     .contentShape(.rect)
                     .accessibilityIdentifier("gps_compact")
                 } else if speed.status == .live {
                     fullCard
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(spokenLabel ?? Text("GPS connected"))
                 } else {
                     fullCard
                 }
             }
             .buttonStyle(.plain)
+            .modifier(SpokenOverride(label: speakingLabel))
             .accessibilityHint(Text("Opens GPS details"))
             .accessibilityIdentifier("gps_card")
             if let action {
@@ -301,6 +307,13 @@ struct GpsCard: View {
                 }
             }
         }
+    }
+
+    /// The one sentence that the link speaks in the compact row and the live card. The other states speak their own text.
+    private var speakingLabel: Text? {
+        if speed.ready { return spokenLabel ?? Text("GPS") }
+        if speed.status == .live { return spokenLabel ?? Text(title) }
+        return nil
     }
 
     /// One spoken sentence: the position accuracy and, when the device moves, the direction of travel.
