@@ -1,7 +1,7 @@
 # GPS comet on the speed circle: design
 
 - **Date:** 8 November 2026
-- **Status:** Design. Not built.
+- **Status:** Approved on 8 November 2026. Not built.
 - **Code baseline:** `a65411a` on `clanker/trusting-brown-ku0enc` (PR #1). The comet goes on the quiet speed circle of
   that commit. Merge PR #1 before you build this.
 
@@ -151,8 +151,8 @@ rests and does not point.
 - VoiceOver hears the direction of travel in words, for example "Moving north-east". (Designer's call: spoken only, no
   new visible text, so the screen stays quiet.)
   - Add the words to the accessibility label that VoiceOver reads for the position accuracy, in both forms of
-    `GpsCard`: the compact row (`gps_compact`, at 5 m or better) and the full card with the `AccuracyBar` (worse than
-    5 m).
+    `GpsCard`: the compact row (`gps_compact`, at 5 m or better) and the full card in the `.live` state (worse than
+    5 m). See "The GPS row without the accuracy bar".
   - Use 8 compass points from the true direction of travel. This needs no compass, so VoiceOver hears it whenever there
     is a direction of travel, also when the comet rests because the compass is not current.
   - Put the new words in `Localizable.xcstrings`.
@@ -160,6 +160,21 @@ rests and does not point.
   `resting`, or no element when hidden.
 - The comet scales with the circle at all text sizes, including the smaller circle at accessibility sizes and the wide
   layout.
+
+### The GPS row without the accuracy bar
+
+The comet shows the position accuracy, so the Speed tab does not need the accuracy bar. (The owner's decision.)
+
+- Remove `AccuracyBar` from `GpsCard` in both forms:
+  - The compact row (`gps_compact`, at 5 m or better) becomes "GPS", the value ("±5 m"), and the chevron.
+  - The full card in the `.live` state (worse than 5 m) shows the value as text, for example "Position accuracy ±12 m",
+    in place of the bar.
+- Keep the other states of the full card (searching, signal lost, permission, and the others) as they are, with their
+  messages and recovery actions.
+- Both forms stay a link to GPS details (`gps_card`).
+- GPS details keeps its `AccuracyBar` with the scale.
+- VoiceOver now reads the accuracy from the row, for example "GPS position accuracy ±5 metres. Moving north-east.", in
+  place of the bar's label.
 
 ### Performance and privacy
 
