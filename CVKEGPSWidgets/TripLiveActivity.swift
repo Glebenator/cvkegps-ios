@@ -84,16 +84,13 @@ private struct StatusLabel: View {
     }
 }
 
-/// The time beside the island. When the island is limited in width, for example on an iPhone in landscape, the compact
-/// views must fit a 28-point circle, so only the leading status icon shows and the system hides the empty trailing view.
+/// The time beside the island. The HIG asks for a leading view only when the island is limited in width (iPhone in
+/// landscape), but `isDynamicIslandLimitedInWidth` is not in the iOS 26.2 SDK, so the time keeps a maximum width.
 private struct CompactTime: View {
     var state: TripActivityAttributes.ContentState
-    @Environment(\.isDynamicIslandLimitedInWidth) private var limited
 
     var body: some View {
-        if !limited {
-            TripTime(state: state).monospacedDigit().frame(maxWidth: 56)
-        }
+        TripTime(state: state).monospacedDigit().frame(maxWidth: 56)
     }
 }
 
