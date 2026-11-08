@@ -80,6 +80,19 @@ final class TripFlowUITests: XCTestCase {
         if element("trips_empty").waitForExistence(timeout: 5) { capture("trips-empty") }
         app.tabBars.buttons["Speed"].tap()
 
+        // The activity menu shows a checkmark on the current choice. Selecting Automatic again keeps the choice.
+        let chip = element("activity_chip")
+        if chip.waitForExistence(timeout: 5) {
+            chip.tap()
+            let automatic = app.buttons["Automatic"].firstMatch
+            if automatic.waitForExistence(timeout: 3) {
+                capture("activity-menu")
+                automatic.tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+            }
+        }
+
         element("trip_start").tap()
         let confirm = element("confirm_start")
         if confirm.waitForExistence(timeout: 5) {
@@ -114,8 +127,8 @@ final class TripFlowUITests: XCTestCase {
         element("replay_charts").tap()
         Thread.sleep(forTimeInterval: 2)
         capture("replay-charts")
-        element("replay_back").tap()
-        element("replay_back").tap()
+        // Close replay returns to the trip. The system Back button then leaves the trip.
+        element("replay_close").tap()
         waitFor(element("open_replay"))
         app.navigationBars.buttons.element(boundBy: 0).tap()
         waitFor(app.navigationBars["Trips"])
@@ -154,6 +167,40 @@ final class TripFlowUITests: XCTestCase {
         let fastest = element("moment_fastestSpeed")
         waitFor(fastest)
         fastest.tap()
+        Thread.sleep(forTimeInterval: 2)
+        capture("replay")
+        // At the largest text sizes the button can be scrolled out of the panel. The charts capture is then skipped.
+        let charts = element("replay_charts")
+        if charts.exists && charts.isHittable {
+            charts.tap()
+            Thread.sleep(forTimeInterval: 2)
+            capture("replay-charts")
+        }
+    }
+
+    /// The Speed tab, the saved trip, and the replay with the phone in landscape. The test turns the phone back at the end.
+    func test3Landscape() throws {
+        continueAfterFailure = false
+        app.launch()
+        XCUIDevice.shared.location = fix(east: 0, speed: 9)
+        allowLocation()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        waitFor(element("current_speed"))
+        for second in 1...4 {
+            XCUIDevice.shared.location = fix(east: Double(second) * 9, speed: 9)
+            Thread.sleep(forTimeInterval: 1)
+        }
+        capture("speed")
+        app.tabBars.buttons["Trips"].tap()
+        let trip = element("saved_trip").firstMatch
+        waitFor(trip)
+        trip.tap()
+        waitFor(element("open_replay"), 20)
+        Thread.sleep(forTimeInterval: 3)
+        capture("saved-trip")
+        element("open_replay").tap()
+        waitFor(element("replay_play"), 30)
         Thread.sleep(forTimeInterval: 2)
         capture("replay")
     }

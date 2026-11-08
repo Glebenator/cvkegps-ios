@@ -72,7 +72,15 @@ extension TripRecord {
     var activityText: String {
         automaticMode && mode != .unknown ? String(localized: "Estimate: \(mode.title)") : mode.title
     }
+
+    /// The activity that the user chose, or nil for Automatic. The activity menu shows a checkmark on it.
+    var chosenMode: TripMode? {
+        automaticMode || mode == .unknown ? nil : mode
+    }
 }
+
+/// Why the activity can be wrong. It shows in the trip details, below the activity.
+let activityEstimateNote: LocalizedStringKey = "The app estimates the activity from your GPS speed. Some activities have similar speeds, for example car and transit. Select the correct activity if necessary."
 
 extension TripMode {
     /// The full activity choice for VoiceOver, where a chip shows only the short name.
@@ -118,8 +126,14 @@ extension MomentKind {
 }
 
 /// Date and time of a trip, with the year only when it is not the current year.
-func tripTime(_ millis: Int64) -> String {
+/// With `short`, for the largest text sizes, a trip of today shows only its time and an older trip only its day, so the
+/// title is not cut off.
+func tripTime(_ millis: Int64, short: Bool = false) -> String {
     let date = Date(timeIntervalSince1970: Double(millis) / 1000)
+    if short {
+        return Calendar.current.isDateInToday(date) ? date.formatted(date: .omitted, time: .shortened)
+            : date.formatted(.dateTime.day().month(.abbreviated))
+    }
     let sameYear = Calendar.current.isDate(date, equalTo: .now, toGranularity: .year)
     return date.formatted(sameYear ? .dateTime.day().month(.abbreviated).hour().minute() :
         .dateTime.day().month(.abbreviated).year().hour().minute())

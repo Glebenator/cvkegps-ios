@@ -17,7 +17,7 @@ struct ReplayPane: View {
             switch replay.load {
             case .failed:
                 ProblemBanner(message: String(localized: "The app cannot read the saved trips. The trips stay on the phone.")) {
-                    Button("Try again") { Task { await replay.retry(from: model.library) } }.buttonStyle(.glass)
+                    Button("Try again") { Task { await replay.retry(from: model.library) } }.buttonStyle(.bordered)
                 }
             case .loading:
                 HStack(spacing: Space.s2) {
@@ -44,6 +44,8 @@ struct ReplayPane: View {
                         timeOnly: titled)
         if !replay.details { SpeedProfile(trip: trip, playhead: replay.playhead, state: timelineState(trip, values), seek: replay.seek, pauseAt: replay.pause(at:)) }
         ReplayControls(replay: replay, trip: trip)
+            // A light tick when the playhead reaches or passes a moment, while it plays or while the user scrubs.
+            .sensoryFeedback(.selection, trigger: trip.moments.last { $0.timeNanos <= replay.playhead }?.number)
         MomentChips(trip: trip, playhead: replay.playhead, heightOffset: heightOffset) { moment in
             replay.pause(at: moment.timeNanos)
             if singleChart { replay.chart = moment.kind.chart }
@@ -129,19 +131,18 @@ private struct ReplayControls: View {
     @Environment(\.displayFormat) private var format
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// The panel is glass, so only Play is prominent glass. The other buttons are bordered.
     var body: some View {
-        GlassEffectContainer(spacing: Space.s2) {
-            // At the largest text sizes, Play has its own row, so its label is not squeezed between the other buttons.
-            if typeSize.isAccessibilitySize {
-                VStack(spacing: Space.s2) {
-                    play
-                    HStack(spacing: Space.s2) { previous; next; rate }
-                }
-                .controlSize(.large)
-            } else {
-                HStack(spacing: Space.s2) { previous; play; next; rate }
-                    .controlSize(.large)
+        // At the largest text sizes, Play has its own row, so its label is not squeezed between the other buttons.
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: Space.s2) {
+                play
+                HStack(spacing: Space.s2) { previous; next; rate }
             }
+            .controlSize(.large)
+        } else {
+            HStack(spacing: Space.s2) { previous; play; next; rate }
+                .controlSize(.large)
         }
     }
 
@@ -150,7 +151,7 @@ private struct ReplayControls: View {
         return Button { if let moment { replay.pause(at: moment.timeNanos) } } label: {
             Image(systemName: "backward.end.fill").frame(width: 24, height: 24)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .disabled(moment == nil)
         .accessibilityLabel(Text("Previous moment"))
@@ -173,7 +174,7 @@ private struct ReplayControls: View {
         return Button { if let moment { replay.pause(at: moment.timeNanos) } } label: {
             Image(systemName: "forward.end.fill").frame(width: 24, height: 24)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .disabled(moment == nil)
         .accessibilityLabel(Text("Next moment"))
@@ -184,7 +185,8 @@ private struct ReplayControls: View {
         Button(action: replay.nextRate) {
             Text("\(format.whole(replay.rate))×").monospacedDigit().lineLimit(1).fixedSize().frame(minWidth: 36, minHeight: 30)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .accessibilityLabel(Text("Replay speed: \(format.whole(replay.rate)) times"))
         .accessibilityIdentifier("replay_rate")
     }
@@ -203,22 +205,21 @@ private struct MomentChips: View {
             Text("The app found no notable moments in this trip.").font(.footnote).foregroundStyle(.secondary)
         } else {
             ScrollView(.horizontal) {
-                GlassEffectContainer(spacing: Space.s2) {
-                    HStack(spacing: Space.s2) {
-                        ForEach(trip.moments) { moment in
-                            Button { pick(moment) } label: {
-                                HStack(spacing: Space.s2) {
-                                    MomentMarker(number: moment.number)
-                                    Text("\(moment.kind.title) · \(momentValue(moment, heightOffset: heightOffset, format: format))")
-                                        .font(.subheadline)
-                                }
-                                .frame(minHeight: 30)
+                HStack(spacing: Space.s2) {
+                    ForEach(trip.moments) { moment in
+                        Button { pick(moment) } label: {
+                            HStack(spacing: Space.s2) {
+                                MomentMarker(number: moment.number)
+                                Text("\(moment.kind.title) · \(momentValue(moment, heightOffset: heightOffset, format: format))")
+                                    .font(.subheadline)
                             }
-                            .buttonStyle(.glass)
-                            .tint(playhead == moment.timeNanos ? Palette.accent : nil)
-                            .accessibilityAddTraits(playhead == moment.timeNanos ? .isSelected : [])
-                            .accessibilityIdentifier("moment_\(moment.kind.rawValue)")
+                            .frame(minHeight: 30)
                         }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .tint(playhead == moment.timeNanos ? Palette.accent : nil)
+                        .accessibilityAddTraits(playhead == moment.timeNanos ? .isSelected : [])
+                        .accessibilityIdentifier("moment_\(moment.kind.rawValue)")
                     }
                 }
             }

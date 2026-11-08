@@ -19,7 +19,7 @@ struct TripsView: View {
                 }
                 if case .failed = read {
                     ProblemBanner(message: String(localized: "The app cannot read the saved trips. The trips stay on the phone.")) {
-                        Button("Try again") { model.library.reload() }.buttonStyle(.glass).accessibilityIdentifier("read_retry")
+                        Button("Try again") { model.library.reload() }.buttonStyle(.bordered).accessibilityIdentifier("read_retry")
                     }
                 }
             }
@@ -45,9 +45,10 @@ struct TripsView: View {
                         .accessibilityIdentifier("saved_trip")
                     }
                 } header: {
+                    // A plain list already gives its headers the secondary colour. A second `.secondary` made it the
+                    // tertiary colour, with a contrast of 1.7:1.
                     Text(TripDay.title(group.day))
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("trip_day")
                 }
@@ -65,8 +66,7 @@ struct TripsView: View {
         .navigationTitle("Trips")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel(Text("Settings"))
+                Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
                     .accessibilityIdentifier("open_settings")
             }
         }

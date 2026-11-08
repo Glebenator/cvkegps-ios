@@ -4,7 +4,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// A saved trip: a full-screen map and a glass panel with the totals. Replay changes the panel and keeps the same map,
-/// so the map does not load again. Back leaves the charts, then the replay (ADR 0004).
+/// so the map does not load again (ADR 0004). The system Back button and the edge swipe stay available in the replay and
+/// leave the trip. Close replay returns to the trip, and the Charts and Map button changes the panel.
 struct SavedTripView: View {
     var id: String
 
@@ -40,7 +41,8 @@ struct SavedTripView: View {
                             moments: moments(replayTrip),
                             played: replayTrip.map { trip in trip.lines.indices.map { trip.playedPoints(line: $0, at: replay.playhead) } },
                             playing: replay.playing,
-                            bottomInset: panelHeight)
+                            bottomInset: panelHeight,
+                            minimal: replaying && replay.details)
                 let panel = VStack(alignment: .leading, spacing: Space.s3) {
                     if replaying {
                         handle
@@ -51,14 +53,24 @@ struct SavedTripView: View {
                 }
                 .padding(Space.s4)
                 // The panel takes the height of its content. Content that is too tall scrolls inside the panel.
-                let limit = geometry.size.height * (replay.details && replaying ? 0.72 : 0.55)
+                let charts = replay.details && replaying
+                let limit = geometry.size.height * (charts ? 0.72 : 0.55)
+                let scrolls = contentHeight > limit
                 VStack(spacing: Space.s2) {
                     ScrollView {
-                        panel.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                        panel.padding(.bottom, scrolls ? Space.s4 : 0)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                     }
                     .scrollBounceBehavior(.basedOnSize)
+                    // Content that continues below the panel edge fades out, so the panel shows that it scrolls.
+                    .mask {
+                        VStack(spacing: 0) {
+                            Rectangle()
+                            if scrolls { LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: Space.s6) }
+                        }
+                    }
                     .frame(height: min(max(contentHeight, 1), limit))
-                    .glassEffect(.regular, in: .rect(cornerRadius: 32))
+                    .modifier(PanelSurface(opaque: charts))
                 }
                 .padding(.horizontal, Space.s3)
                 .padding(.bottom, Space.s2)
@@ -66,10 +78,10 @@ struct SavedTripView: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { panelHeight = $0 + Space.s4 }
             }
         }
-        .navigationTitle(replaying ? String(localized: "Trip replay") : trip.map { tripTime($0.startedMillis) } ?? "")
+        .navigationTitle(replaying ? String(localized: "Trip replay")
+                         : trip.map { tripTime($0.startedMillis, short: typeSize.isAccessibilitySize) } ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .navigationBarBackButtonHidden(replaying)
         .toolbar { toolbar(trip, shown) }
         .sheet(isPresented: $details) {
             if let shown { SavedDetailsSheet(detail: shown).presentationDetents([.medium, .large]) }
@@ -133,21 +145,11 @@ struct SavedTripView: View {
         }
     }
 
-    /// A drag up shows the charts, a drag down shows the glance view. The button does the same, so a drag is not the only way.
+    /// The Charts and Map button changes the panel between the glance view and the charts. There is no drag handle: on iOS a
+    /// grabber resizes a sheet (HIG, Sheets), and this panel does not behave like one.
     private var handle: some View {
         HStack {
-            Capsule().fill(.secondary.opacity(0.6)).frame(width: 36, height: 5)
-                .frame(maxWidth: .infinity, minHeight: 24)
-                .contentShape(.rect)
-                .gesture(DragGesture(minimumDistance: 12).onEnded { value in
-                    withAnimation(.snappy) {
-                        if value.translation.height < -24 { replay.details = true } else if value.translation.height > 24 { replay.details = false }
-                    }
-                })
-                .accessibilityElement()
-                .accessibilityLabel(replay.details ? Text("Show the map") : Text("Show the charts"))
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { withAnimation(.snappy) { replay.details.toggle() } }
+            Spacer(minLength: 0)
             if replay.replay != nil {
                 Button {
                     withAnimation(.snappy) { replay.details.toggle() }
@@ -159,7 +161,8 @@ struct SavedTripView: View {
                         Label(replay.details ? "Map" : "Charts", systemImage: replay.details ? "map" : "chart.xyaxis.line")
                     }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
                 .accessibilityLabel(replay.details ? Text("Map") : Text("Charts"))
                 .accessibilityIdentifier("replay_charts")
             }
@@ -172,7 +175,7 @@ struct SavedTripView: View {
         if let error = model.recorder.state.error { ProblemBanner(message: error.message) }
         if case .failed = detail {
             ProblemBanner(message: String(localized: "The app cannot read the saved trips. The trips stay on the phone.")) {
-                Button("Try again") { Task { await read() } }.buttonStyle(.glass).accessibilityIdentifier("read_retry")
+                Button("Try again") { Task { await read() } }.buttonStyle(.bordered).accessibilityIdentifier("read_retry")
             }
         }
         if let trip, trip.status != .finished {
@@ -189,7 +192,7 @@ struct SavedTripView: View {
                 .prominentButton()
                 .disabled(model.recorder.state.trip != nil)
                 Button { model.recorder.send(.finish(id: trip.id)) } label: { Text("End trip").frame(maxWidth: .infinity) }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.bordered)
             }
             .controlSize(.large)
         }
@@ -197,34 +200,30 @@ struct SavedTripView: View {
 
     @ToolbarContentBuilder private func toolbar(_ trip: TripRecord?, _ shown: TripDetail?) -> some ToolbarContent {
         if replaying {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    // Back in the charts returns to the glance view, and then to the trip.
-                    withAnimation(.snappy) { if replay.details { replay.details = false } else { replaying = false } }
+                    withAnimation(.snappy) { replaying = false }
                 } label: {
-                    Image(systemName: "chevron.backward")
+                    Label("Close replay", systemImage: "xmark")
                 }
-                .accessibilityLabel(Text("Back"))
-                .accessibilityIdentifier("replay_back")
+                .accessibilityIdentifier("replay_close")
             }
         } else if let trip {
             // A recording trip still changes, so only a saved trip with positions can replay.
             let replayable = (trip.status == .finished || trip.status == .interrupted) && !(shown?.summary.lines.isEmpty ?? true)
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if replayable {
-                    Button { withAnimation(.snappy) { replaying = true } } label: { Image(systemName: "play.fill") }
-                        .accessibilityLabel(Text("Replay trip"))
+                    Button { withAnimation(.snappy) { replaying = true } } label: { Label("Replay trip", systemImage: "play.fill") }
                         .accessibilityIdentifier("open_replay")
                 }
-                Button { details = true } label: { Image(systemName: "info.circle") }
+                Button { details = true } label: { Label("Trip details", systemImage: "info.circle") }
                     .disabled(shown == nil)
-                    .accessibilityLabel(Text("Trip details"))
                     .accessibilityIdentifier("trip_details")
                 Menu {
-                    if replayable {
-                        Button { withAnimation(.snappy) { replaying = true } } label: { Label("Replay trip", systemImage: "play") }
+                    ActivityMenu(selection: trip.chosenMode, spoken: String(localized: "Change activity"),
+                                 choose: { model.trips.chooseActivity($0, for: .trip(trip.id)) }) {
+                        Label("Change activity", systemImage: "pencil")
                     }
-                    Button { model.trips.activityChoice = .trip(trip.id) } label: { Label("Change activity", systemImage: "pencil") }
                     // Only a route with positions can be shared.
                     if !(shown?.summary.lines.isEmpty ?? true) {
                         ShareLink(item: GpxExport(tripId: trip.id, name: tripTime(trip.startedMillis), library: model.library),
@@ -238,9 +237,8 @@ struct SavedTripView: View {
                         Button(role: .destructive) { model.trips.deleteCandidate = trip.id } label: { Label("Delete trip", systemImage: "trash") }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
+                    Label("More options", systemImage: "ellipsis")
                 }
-                .accessibilityLabel(Text("More options"))
                 .accessibilityIdentifier("trip_menu")
             }
         }
@@ -373,6 +371,8 @@ private struct SavedDetailsSheet: View {
                     LabeledContent("Status", value: detail.trip.status.title)
                     TripTotalsRows(distance: detail.summary.distanceMeters, duration: detail.trip.durationNanos,
                                    maximum: detail.summary.maximumSpeedMetersPerSecond)
+                } footer: {
+                    Text(activityEstimateNote)
                 }
                 Section {
                     LabeledContent("Saved positions", value: format.whole(detail.positions))
@@ -397,6 +397,22 @@ private struct SavedDetailsSheet: View {
             }
             .navigationTitle("Trip details")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+/// The surface of the trip panel. Glass floats over the map. The charts are content, so they get an opaque surface and
+/// the map does not show through the lines (HIG, Materials).
+private struct PanelSurface: ViewModifier {
+    var opaque: Bool
+
+    func body(content: Content) -> some View {
+        if opaque {
+            content
+                .background(Palette.background, in: .rect(cornerRadius: 32))
+                .shadow(color: .black.opacity(0.15), radius: 12, y: 2)
+        } else {
+            content.glassEffect(.regular, in: .rect(cornerRadius: 32))
         }
     }
 }

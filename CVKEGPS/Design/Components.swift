@@ -75,6 +75,7 @@ extension ProblemBanner where Action == EmptyView {
 }
 
 /// Recording, Paused, No GPS signal, or an approximate position. The icon and the text both show the state.
+/// It is a plain label in the panel, not glass: glass is only for controls (HIG, Materials).
 struct TripStatusChip: View {
     var status: TripStatus
     var noSignal: Bool
@@ -83,15 +84,14 @@ struct TripStatusChip: View {
     var body: some View {
         let recording = status == .recording
         HStack(spacing: Space.s2) {
-            Image(systemName: recording ? "record.circle.fill" : "pause.circle.fill")
+            Image(systemName: recording ? (noSignal ? "location.slash.fill" : "record.circle.fill") : "pause.circle.fill")
                 .foregroundStyle(recording ? Palette.danger : Palette.inkMuted)
-            // No pulse: the owner's design language does not allow pulsing icons. The text and the tint show the state.
+            // No pulse: the owner's design language does not allow pulsing icons. The text and the icon show the state.
+            // A lost signal is a problem, so its text takes the danger colour.
             Text(text).font(.subheadline.weight(.medium))
+                .foregroundStyle(recording && noSignal ? Palette.danger : Palette.ink)
         }
-        .padding(.horizontal, Space.s3)
-        .padding(.vertical, Space.s1 + 2)
-        // A lost signal is a problem, so the glass takes the danger tint.
-        .glassEffect(recording && noSignal ? .regular.tint(Palette.danger.opacity(0.3)) : .regular, in: .capsule)
+        .frame(minHeight: 30)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("recording_status")
     }
@@ -170,13 +170,12 @@ struct TripActionsView: View {
     var stop: () -> Void
 
     var body: some View {
-        GlassEffectContainer(spacing: Space.s3) {
-            // In a row, Pause or Resume takes the width of its label and Stop and save takes the rest, so no label is cut.
-            // When the labels do not fit in one row, the buttons stack with the full width.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Space.s3) { buttons(row: true) }
-                VStack(spacing: Space.s2) { buttons(row: false) }
-            }
+        // In a row, Pause or Resume takes the width of its label and Stop and save takes the rest, so no label is cut.
+        // When the labels do not fit in one row, the buttons stack with the full width.
+        // The panel is glass, so Pause and Resume are bordered, not glass. Only Stop and save is prominent glass.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Space.s3) { buttons(row: true) }
+            VStack(spacing: Space.s2) { buttons(row: false) }
         }
     }
 
@@ -185,7 +184,8 @@ struct TripActionsView: View {
             Button(action: pause) {
                 Label("Pause trip", systemImage: "pause.fill").frame(maxWidth: row ? nil : .infinity, minHeight: 30)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
             .controlSize(.large)
             .fixedSize(horizontal: row, vertical: false)
             .accessibilityIdentifier("trip_pause")
@@ -193,7 +193,8 @@ struct TripActionsView: View {
             Button(action: resume) {
                 Label("Resume trip", systemImage: "play.fill").frame(maxWidth: row ? nil : .infinity, minHeight: 30)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
             .controlSize(.large)
             .fixedSize(horizontal: row, vertical: false)
             .accessibilityIdentifier("trip_resume")
@@ -207,30 +208,48 @@ struct TripActionsView: View {
     }
 }
 
-/// A chip that opens the activity choice. As on Android, it can show the activity icon and a short name; then `spoken`
-/// gives VoiceOver the full choice.
-struct ActivityChip: View {
-    var text: String
-    var symbol: String? = nil
-    var trailing = "pencil"
-    var spoken: String? = nil
-    /// The label height. A chip beside a large button uses the height of that button's label.
-    var minHeight: CGFloat = 30
-    var action: () -> Void
+/// The activity choice as a menu with a checkmark on the current choice: Automatic, then each activity. As on Android,
+/// the label can show the activity icon and a short name; then `spoken` gives VoiceOver the full choice.
+struct ActivityMenu<Label: View>: View {
+    /// Nil is Automatic.
+    var selection: TripMode?
+    var spoken: String
+    var hint: LocalizedStringKey? = nil
+    var choose: (TripMode?) -> Void
+    @ViewBuilder var label: Label
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: Space.s2) {
-                if let symbol { Image(systemName: symbol).foregroundStyle(.primary) }
-                Text(text).lineLimit(1)
-                Image(systemName: trailing).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        Menu {
+            Picker("Activity", selection: Binding(get: { selection }, set: choose)) {
+                Text("Automatic").tag(TripMode?.none)
+                ForEach(TripMode.choices, id: \.self) { mode in
+                    SwiftUI.Label(mode.title, systemImage: mode.symbol).tag(Optional(mode))
+                }
             }
-            .font(.subheadline)
-            .frame(minHeight: minHeight)
+            .pickerStyle(.inline)
+        } label: {
+            label
         }
-        .buttonStyle(.glass)
-        .accessibilityLabel(Text(spoken ?? text))
+        .accessibilityLabel(Text(spoken))
+        .accessibilityHint(hint.map { Text($0) } ?? Text(""))
         .accessibilityIdentifier("activity_chip")
+    }
+}
+
+/// The label of an activity menu: the icon, the short name, and a chevron.
+struct ActivityMenuLabel: View {
+    var text: String
+    var symbol: String
+
+    var body: some View {
+        HStack(spacing: Space.s2) {
+            Image(systemName: symbol).foregroundStyle(.primary)
+            Text(text).lineLimit(1)
+            Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        }
+        .font(.subheadline.weight(.medium))
+        .frame(minHeight: 44)
+        .contentShape(.rect)
     }
 }
 

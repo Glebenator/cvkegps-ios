@@ -14,7 +14,7 @@ struct SpeedView: View {
             Group {
                 if wide {
                     HStack(spacing: Space.s6) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, maximum: model.speed.maximum)
                         ScrollView {
                             VStack(spacing: Space.s3) {
                                 metrics
@@ -30,7 +30,7 @@ struct SpeedView: View {
                     // The largest text sizes need more height than the screen has. The values then scroll under a smaller dial.
                     ScrollView {
                         VStack(spacing: Space.s3) {
-                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(height: 240)
+                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, maximum: model.speed.maximum).frame(height: 240)
                             metrics
                             gpsCard
                             tripControls
@@ -38,7 +38,7 @@ struct SpeedView: View {
                     }
                 } else {
                     VStack(spacing: Space.s3) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(maxHeight: .infinity)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, maximum: model.speed.maximum).frame(maxHeight: .infinity)
                         metrics
                         gpsCard
                         tripControls
@@ -53,8 +53,7 @@ struct SpeedView: View {
         .background { BrandBackdrop() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel(Text("Settings"))
+                Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
                     .accessibilityIdentifier("open_settings")
             }
         }
@@ -116,11 +115,15 @@ struct SpeedView: View {
     }
 }
 
-/// The large speed in a glass circle. As on Android, the dial has no title: the tab and the unit say that the number is the
+/// The large speed in a ring. As on Android, the dial has no title: the tab and the unit say that the number is the
 /// speed, so the digits can be larger. VoiceOver still hears "Current speed". A dash shows a missing speed at a normal size,
 /// so it does not look like a bar, and without a unit, so it does not look like a value.
+/// The digits are content, so they are on the backdrop, not on glass. The ring fills to the current speed as a part of the
+/// maximum speed since app launch, in the speed colours of the trip maps (ADR 0005). Without a current speed, only the
+/// empty track shows. The ring does not animate: data changes at once.
 struct SpeedDial: View {
     var speed: Double?
+    var maximum: Double?
     @Environment(\.displayFormat) private var format
 
     var body: some View {
@@ -141,13 +144,42 @@ struct SpeedDial: View {
             }
             .padding(diameter * (diameter >= 240 ? 0.1 : 0.08))
             .frame(width: diameter, height: diameter)
-            .glassEffect(.regular, in: .circle)
+            .background { SpeedRing(fraction: fraction, width: max(diameter * 0.035, 6)) }
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
         .frame(minHeight: 120)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(speed.map(format.spokenSpeed) ?? String(localized: "Current speed unavailable"))
         .accessibilityIdentifier("current_speed")
+    }
+
+    /// The current speed as a part of the maximum since app launch, from 0 to 1. Zero at a stop or without a speed.
+    private var fraction: Double {
+        guard let speed, let maximum, maximum >= SpeedColours.movingMetersPerSecond else { return 0 }
+        return min(max(speed / maximum, 0), 1)
+    }
+}
+
+/// A track and an arc from the top, clockwise. The arc has the speed colours from slow (dark) to fast (yellow), so its end
+/// has the colour of this speed on a trip map.
+private struct SpeedRing: View {
+    var fraction: Double
+    var width: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.quaternary, lineWidth: width)
+            if fraction > 0 {
+                Circle()
+                    .trim(from: 0, to: fraction)
+                    .stroke(AngularGradient(colors: SpeedRamp.stops.map { Color(rgb: $0) }, center: .center,
+                                            startAngle: .degrees(0), endAngle: .degrees(360)),
+                            style: StrokeStyle(lineWidth: width, lineCap: .butt))
+                    .rotationEffect(.degrees(-90))
+            }
+        }
+        .padding(width / 2)
+        .accessibilityHidden(true)
     }
 }
 
@@ -184,18 +216,30 @@ struct GpsCard: View {
     var speed: SpeedModel
     var location: LocationService
     var trips: TripController
+    @Environment(\.displayFormat) private var format
 
     var body: some View {
         VStack(spacing: Space.s3) {
             NavigationLink(value: AppRoute.gpsDetails) {
                 if speed.ready {
-                    HStack(spacing: Space.s2) {
+                    // A row on the backdrop, like the readings above it, with a name and the value, so the bar does not
+                    // need explaining. VoiceOver reads the bar's own label.
+                    HStack(spacing: Space.s3) {
+                        Text("GPS").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
                         AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters, showsLabel: false)
+                        if let accuracy = speed.reading?.accuracyMeters {
+                            Text("±\(format.decimal(accuracy)) m")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
+                                .accessibilityHidden(true)
+                        }
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, Space.s4)
+                    .padding(.horizontal, Space.s2)
                     .frame(minHeight: Size.touch)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .contentShape(.rect)
                     .accessibilityIdentifier("gps_compact")
                 } else {
                     GlassCard {
