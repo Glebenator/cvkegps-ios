@@ -272,13 +272,16 @@ final class LocationService: NSObject, RecordingLocationSource {
     }
 
     /// Tells the compass which way the interface faces. The device orientation is the reverse of the interface orientation in landscape.
+    /// The view calls this on each heading change, so it does nothing when the orientation is the same.
     func setCompassOrientation(_ orientation: UIInterfaceOrientation) {
-        manager.headingOrientation = switch orientation {
+        let device: CLDeviceOrientation = switch orientation {
         case .portraitUpsideDown: .portraitUpsideDown
         case .landscapeLeft: .landscapeRight
         case .landscapeRight: .landscapeLeft
         default: .portrait
         }
+        guard manager.headingOrientation != device else { return }
+        manager.headingOrientation = device
     }
 
     private func updated(trueHeading: Double, accuracy: Double) {

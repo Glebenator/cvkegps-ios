@@ -54,6 +54,7 @@ struct SpeedView: View {
             .padding(.bottom, Space.s2)
         }
         .background { BrandBackdrop() }
+        .background { CompassOrientationFollower(location: model.location, shown: shown) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
@@ -83,17 +84,17 @@ struct SpeedView: View {
     }
 
     /// The comet for a live reading, or nil. Without a current compass, the comet rests.
+    /// The view reads the heading only when the comet can point, so a heading change does not redraw the Speed tab
+    /// while the comet rests or is hidden.
     private var comet: GpsComet? {
-        GpsComet.make(reading: model.speed.reading, live: model.speed.status == .live, heading: model.location.heading)
+        let reading = model.speed.reading
+        let heading = reading?.travelRadians == nil ? PhoneHeading.unavailable : model.location.heading
+        return GpsComet.make(reading: reading, live: model.speed.status == .live, heading: heading)
     }
 
     /// Reads the interface orientation on the next main-actor turn, after the rotation has applied.
     private func updateCompassOrientation() {
-        Task { @MainActor in
-            guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation
-            else { return }
-            model.location.setCompassOrientation(orientation)
-        }
+        Task { @MainActor in CompassOrientationFollower.apply(to: model.location) }
     }
 
     /// Two readings as plain text on the backdrop, with a thin line between them. Glass is only for controls.
@@ -164,7 +165,7 @@ struct SpeedDial: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let diameter = min(min(geometry.size.width, geometry.size.height) - 2 * SpeedComet.reach, 320)
+            let diameter = max(0, min(min(geometry.size.width, geometry.size.height) - 2 * SpeedComet.reach, 320))
             VStack(spacing: Space.s1) {
                 if let speed {
                     Text(format.speedNumber(speed))
@@ -196,6 +197,30 @@ struct SpeedDial: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(speed.map(format.spokenSpeed) ?? String(localized: "Current speed unavailable"))
         .accessibilityIdentifier("current_speed")
+    }
+}
+
+/// Sets the compass orientation again on each heading change while the Speed tab shows.
+/// A turn of 180 degrees between the two landscape orientations does not change the view size, and UIKit can apply the
+/// rotation after the device orientation notification. The turn changes the heading, so the next heading sets the
+/// correct orientation. This view reads the heading, not the Speed tab, so a heading change does not redraw the tab.
+private struct CompassOrientationFollower: View {
+    var location: LocationService
+    var shown: Bool
+
+    var body: some View {
+        Color.clear
+            .accessibilityHidden(true)
+            .onChange(of: shown ? location.heading : .unavailable) { _, _ in
+                if shown { Self.apply(to: location) }
+            }
+    }
+
+    /// Gives the current interface orientation to the compass.
+    static func apply(to location: LocationService) {
+        guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation
+        else { return }
+        location.setCompassOrientation(orientation)
     }
 }
 
@@ -236,7 +261,8 @@ private struct SpokenOverride: ViewModifier {
     }
 }
 
-/// The GPS state. The whole card opens GPS details. A fresh position of 5 m or better reduces the card to its bar.
+/// The GPS state. The whole card opens GPS details. A fresh position of 5 m or better reduces the card to one row:
+/// "GPS", the accuracy, and a chevron.
 struct GpsCard: View {
     var speed: SpeedModel
     var location: LocationService

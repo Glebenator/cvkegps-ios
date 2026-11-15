@@ -57,7 +57,7 @@ final class SpeedModel {
         reading = nil
     }
 
-    /// A fresh position with an accuracy estimate of 5 m or better. The GPS card then reduces to its bar.
+    /// A fresh position with an accuracy estimate of 5 m or better. The GPS card then reduces to one row.
     var ready: Bool {
         guard status == .live, let accuracy = reading?.accuracyMeters else { return false }
         return accuracy.isFinite && accuracy >= 0 && accuracy <= 5
