@@ -65,7 +65,12 @@ public enum CompassPoint: CaseIterable, Sendable {
     case north, northEast, east, southEast, south, southWest, west, northWest
 
     /// Each point covers a sector of 45° that is centred on it. The angle is clockwise from north.
+    /// An angle that is not a finite number gives north.
     public init(radians: Double) {
+        guard radians.isFinite else {
+            self = .north
+            return
+        }
         let full = 2 * Double.pi
         var angle = radians.truncatingRemainder(dividingBy: full)
         if angle < 0 { angle += full }

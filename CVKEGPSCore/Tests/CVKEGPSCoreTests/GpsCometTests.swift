@@ -112,5 +112,11 @@ struct GpsCometTests {
         #expect(point(-90) == .west)
     }
 
+    @Test func compassPointOfNonFiniteAngleIsNorth() {
+        #expect(CompassPoint(radians: .nan) == .north)
+        #expect(CompassPoint(radians: .infinity) == .north)
+        #expect(CompassPoint(radians: -.infinity) == .north)
+    }
+
     private enum Failure: Error { case notPointing }
 }
