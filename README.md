@@ -44,9 +44,9 @@ Each run uploads the screenshots of the UI flow as the `ios-captures` artifact.
 ## Features
 
 - **Speed.** The current GPS speed in a large dial, with altitude and maximum speed. A GPS comet on the rim of the dial
-  shows the direction of travel (from the compass, while the Speed tab is open) and the position accuracy (a short,
-  sharp comet means a good fix). The GPS row shows the accuracy as a number. An old or poor reading shows as
-  unavailable, never as a current speed.
+  shows the direction of travel (from the compass, while the Speed tab is open) and the position accuracy. A narrow,
+  sharp glow means a precise position. A narrow blue point means a sure direction. The GPS row shows the accuracy as a
+  number. An old or poor reading shows as unavailable, never as a current speed.
 - **Trip recording.** Start trip and the activity in the bar above the tabs. Pause, resume, and stop from the recording
   bar or from the Live Activity on the Lock Screen and in the Dynamic Island. After Stop and save, you can resume the
   trip for 2 minutes.

@@ -55,9 +55,10 @@ The look comes from mockup "C · Comet". The mockup generator is not in Git. The
 - The comet draws inside the `SpeedDial` frame. It does not draw over the readings, the toolbar, or the side column, and
   it is not clipped.
 - The circle diameter becomes `min(width, height, 320) − 2 × 24`, but not less than the diameter that the frame gives
-  minus the free space that is already there. In practice: in portrait on an iPhone, the frame is wider than 368 pt, so
-  the circle stays at 320 pt. In the accessibility layout (240 pt frame) and in the wide layout, the circle becomes up to
-  48 pt smaller, so the digits there are a little smaller.
+  minus the free space that is already there. In practice: in portrait on an iPhone that is about 400 pt wide or wider,
+  the frame is wider than 368 pt, so the circle stays at 320 pt. On iPhones narrower than about 400 pt, the circle is a
+  little smaller than 320 pt (for example, about 310 pt on a 390 pt screen). In the accessibility layout (240 pt frame)
+  and in the wide layout, the circle becomes up to 48 pt smaller, so the digits there are a little smaller.
 - Check the speed digits at the largest text size after this change.
 
 ## Behaviour
