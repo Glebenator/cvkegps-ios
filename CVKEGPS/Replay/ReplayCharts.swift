@@ -14,7 +14,7 @@ struct ReplayCharts: View {
     var seaLevel: Bool
     var state: String
     var single: ReplayChartKind?
-    var select: (ReplayChartKind) -> Void
+    var select: @MainActor (ReplayChartKind) -> Void
     var seek: (Int64) -> Void
     var pauseAt: (Int64) -> Void
     var value: ((ReplayChartKind) -> String?)? = nil
@@ -26,7 +26,7 @@ struct ReplayCharts: View {
         let shown = single.map { kind in specs.filter { $0.kind == kind }.prefix(1) }.map(Array.init) ?? specs
         VStack(alignment: .leading, spacing: Space.s3) {
             if single != nil && specs.count > 1 {
-                Picker("Chart", selection: Binding(get: { shown.first?.kind ?? .speed }, set: select)) {
+                Picker("Chart", selection: Binding(get: { shown.first?.kind ?? .speed }, set: { select($0) })) {
                     ForEach(specs) { spec in Text(title(spec.kind)).tag(spec.kind) }
                 }
                 .pickerStyle(.segmented)

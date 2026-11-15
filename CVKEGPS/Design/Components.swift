@@ -215,12 +215,12 @@ struct ActivityMenu<Label: View>: View {
     var selection: TripMode?
     var spoken: String
     var hint: LocalizedStringKey? = nil
-    var choose: (TripMode?) -> Void
+    var choose: @MainActor (TripMode?) -> Void
     @ViewBuilder var label: Label
 
     var body: some View {
         Menu {
-            Picker("Activity", selection: Binding(get: { selection }, set: choose)) {
+            Picker("Activity", selection: Binding(get: { selection }, set: { choose($0) })) {
                 Text("Automatic").tag(TripMode?.none)
                 ForEach(TripMode.choices, id: \.self) { mode in
                     SwiftUI.Label(mode.title, systemImage: mode.symbol).tag(Optional(mode))
