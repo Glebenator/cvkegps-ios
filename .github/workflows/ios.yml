@@ -1,5 +1,6 @@
 # Builds the iOS app with Xcode, runs the Swift package tests, and runs the UI flow on a simulator.
-# The UI flow uses simulated locations. Its screenshots are an artifact for the progress report.
+# The UI flow uses simulated locations. Its screenshots are an artifact for the progress report: light mode, dark mode,
+# the largest text size, Increase Contrast, and landscape.
 name: iOS
 
 on:
@@ -93,10 +94,28 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
             -only-testing:CVKEGPSUITests/TripFlowUITests/test2Screens -resultBundlePath large.xcresult | tail -40
           xcrun simctl ui "${{ steps.sim.outputs.udid }}" content_size large
+      - name: Run the screens with Increase Contrast
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set -o pipefail
+          xcrun simctl ui "${{ steps.sim.outputs.udid }}" appearance light
+          xcrun simctl ui "${{ steps.sim.outputs.udid }}" increase_contrast enabled
+          xcodebuild test-without-building -project CVKEGPS.xcodeproj -scheme CVKEGPS \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            -only-testing:CVKEGPSUITests/TripFlowUITests/test2Screens -resultBundlePath contrast.xcresult | tail -40
+          xcrun simctl ui "${{ steps.sim.outputs.udid }}" increase_contrast disabled
+      - name: Run the screens in landscape
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set -o pipefail
+          xcrun simctl ui "${{ steps.sim.outputs.udid }}" appearance light
+          xcodebuild test-without-building -project CVKEGPS.xcodeproj -scheme CVKEGPS \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            -only-testing:CVKEGPSUITests/TripFlowUITests/test3Landscape -resultBundlePath landscape.xcresult | tail -40
       - name: Export the screenshots
         if: always()
         run: |
-          for run in light dark large; do
+          for run in light dark large contrast landscape; do
             if [ -d "$run.xcresult" ]; then
               xcrun xcresulttool export attachments --path "$run.xcresult" --output-path "attachments-$run" || true
               [ -f "attachments-$run/manifest.json" ] && python3 scripts/export-captures.py "attachments-$run" captures "$run" || true

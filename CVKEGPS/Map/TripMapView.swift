@@ -44,9 +44,13 @@ struct TripMapView: View {
     var playing = false
     /// The height of the panel over the bottom of the map.
     var bottomInset: CGFloat = 0
+    /// True when the map is a small strip above the replay charts. The map then shows only the route and the position,
+    /// without the buttons and the legend, so they do not cover the route and the playhead.
+    var minimal = false
 
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var camera: MapCameraPosition = .automatic
     @State private var route = MapRoute()
     @State private var follow: FollowMode = .off
@@ -82,7 +86,7 @@ struct TripMapView: View {
                 .onChange(of: camera.positionedByUser) { _, byUser in if byUser { follow = .off } }
                 .onAppear {
                     size = geometry.size
-                    if follows { follow = settings.mapStart == .course ? .course : .north }
+                    if follows { follow = settings.mapStart == .course && !reduceMotion ? .course : .north }
                     route.set(lines, bySpeed: bySpeed, throttled: false)
                 }
                 .onChange(of: geometry.size) { _, new in size = new }
@@ -90,11 +94,15 @@ struct TripMapView: View {
         // The map controls and the legend stop growing at the largest standard text size, as in Apple Maps, so they do
         // not cover each other and the route. Their VoiceOver labels give the same information.
         .overlay(alignment: .topTrailing) {
-            controls.padding(.trailing, Space.s3).padding(.top, Space.s2).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            if !minimal {
+                controls.padding(.trailing, Space.s3).padding(.top, Space.s2).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            }
         }
         .overlay(alignment: .topLeading) {
             // On a short map the buttons are in one row, so the legend goes below them (as on Android).
-            legend.padding(.leading, Space.s3).padding(.top, shortMap ? Space.s2 + 60 : Space.s2).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            if !minimal {
+                legend.padding(.leading, Space.s3).padding(.top, shortMap ? Space.s2 + 60 : Space.s2).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            }
         }
         .overlay(alignment: .bottom) { note.padding(.bottom, bottomInset + Space.s6) }
         .onChange(of: lines) { _, new in route.set(new, bySpeed: bySpeed, throttled: mode == .live) }
@@ -108,7 +116,7 @@ struct TripMapView: View {
         .onChange(of: follow) { _, _ in moveCamera() }
         .onChange(of: mode) { _, new in
             // The saved trip map changes to replay mode and back. The map stays, so it does not load again.
-            follow = new == .saved ? .off : (settings.mapStart == .course ? .course : .north)
+            follow = new == .saved ? .off : (settings.mapStart == .course && !reduceMotion ? .course : .north)
             userZoomed = false
             replayStart = new == .replay
             moveCamera()
@@ -244,11 +252,13 @@ struct TripMapView: View {
         }
         let course = follow == .course
         let bearing = course ? (sample.courseRadians.map { $0 * 180 / .pi } ?? current?.heading ?? 0) : 0
-        let pitch = course && settings.mapTilt ? 45.0 : 0
+        // With Reduce Motion on, the map does not tilt (HIG, Motion).
+        let pitch = course && settings.mapTilt && !reduceMotion ? 45.0 : 0
         let next = MapCameraPosition.camera(MapCamera(centerCoordinate: sample.coordinate, distance: distance, heading: bearing, pitch: pitch))
         if placed && (mode != .replay || firstReplayMove) {
-            // One short camera move for each new fix. There is no continuous animation.
-            withAnimation(.easeInOut(duration: 0.8)) { camera = next }
+            // One short camera move for each new fix. There is no continuous animation. With Reduce Motion on, the move is
+            // shorter and even, without the slow start and end.
+            withAnimation(reduceMotion ? .linear(duration: 0.25) : .easeInOut(duration: 0.8)) { camera = next }
             if replayStart { replayMoveEnd = .now.addingTimeInterval(0.8) }
         } else if mode == .replay && playing {
             // A playing replay moves evenly between the playhead steps.

@@ -19,7 +19,7 @@ struct TripsView: View {
                 }
                 if case .failed = read {
                     ProblemBanner(message: String(localized: "The app cannot read the saved trips. The trips stay on the phone.")) {
-                        Button("Try again") { model.library.reload() }.buttonStyle(.glass).accessibilityIdentifier("read_retry")
+                        Button("Try again") { model.library.reload() }.buttonStyle(.bordered).accessibilityIdentifier("read_retry")
                     }
                 }
             }
@@ -45,9 +45,12 @@ struct TripsView: View {
                         .accessibilityIdentifier("saved_trip")
                     }
                 } header: {
+                    // `.secondary` in a plain list header gave the tertiary colour (1.7:1), and the list's own secondary
+                    // colour is 3.3:1. `inkMuted` is 5.6:1 in light mode, 7.6:1 in dark mode, and stronger with Increase
+                    // Contrast, so the 13-point header meets 4.5:1.
                     Text(TripDay.title(group.day))
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.inkMuted)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("trip_day")
                 }
@@ -65,8 +68,7 @@ struct TripsView: View {
         .navigationTitle("Trips")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel(Text("Settings"))
+                Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
                     .accessibilityIdentifier("open_settings")
             }
         }

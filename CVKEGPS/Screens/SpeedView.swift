@@ -7,6 +7,9 @@ struct SpeedView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayFormat) private var format
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
+    /// True while the Speed tab is shown. The view stays alive in the tab bar, so the compass must check this.
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -14,7 +17,7 @@ struct SpeedView: View {
             Group {
                 if wide {
                     HStack(spacing: Space.s6) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet)
                         ScrollView {
                             VStack(spacing: Space.s3) {
                                 metrics
@@ -30,7 +33,7 @@ struct SpeedView: View {
                     // The largest text sizes need more height than the screen has. The values then scroll under a smaller dial.
                     ScrollView {
                         VStack(spacing: Space.s3) {
-                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(height: 240)
+                            SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet).frame(height: 240)
                             metrics
                             gpsCard
                             tripControls
@@ -38,7 +41,7 @@ struct SpeedView: View {
                     }
                 } else {
                     VStack(spacing: Space.s3) {
-                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond).frame(maxHeight: .infinity)
+                        SpeedDial(speed: model.speed.reading?.speedMetersPerSecond, comet: comet).frame(maxHeight: .infinity)
                         metrics
                         gpsCard
                         tripControls
@@ -51,16 +54,47 @@ struct SpeedView: View {
             .padding(.bottom, Space.s2)
         }
         .background { BrandBackdrop() }
+        .background { CompassOrientationFollower(location: model.location, shown: shown) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel(Text("Settings"))
+                Button { model.showSettings = true } label: { Label("Settings", systemImage: "gearshape") }
                     .accessibilityIdentifier("open_settings")
             }
         }
         .toolbarTitleDisplayMode(.inline)
-        .onAppear { model.location.display(true) }
-        .onDisappear { model.location.display(false) }
+        .onAppear {
+            shown = true
+            model.location.display(true)
+            model.location.compass(scenePhase == .active)
+            // Device orientation changes tell the compass about 180 degree turns, which do not change the view size.
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+            updateCompassOrientation()
+        }
+        .onDisappear {
+            shown = false
+            model.location.display(false)
+            model.location.compass(false)
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
+        }
+        .onChange(of: scenePhase) { _, phase in model.location.compass(shown && phase == .active) }
+        .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { _ in updateCompassOrientation() }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            updateCompassOrientation()
+        }
+    }
+
+    /// The comet for a live reading, or nil. Without a current compass, the comet rests.
+    /// The view reads the heading only when the comet can point, so a heading change does not redraw the Speed tab
+    /// while the comet rests or is hidden.
+    private var comet: GpsComet? {
+        let reading = model.speed.reading
+        let heading = reading?.travelRadians == nil ? PhoneHeading.unavailable : model.location.heading
+        return GpsComet.make(reading: reading, live: model.speed.status == .live, heading: heading)
+    }
+
+    /// Reads the interface orientation on the next main-actor turn, after the rotation has applied.
+    private func updateCompassOrientation() {
+        Task { @MainActor in CompassOrientationFollower.apply(to: model.location) }
     }
 
     /// Two readings as plain text on the backdrop, with a thin line between them. Glass is only for controls.
@@ -116,16 +150,22 @@ struct SpeedView: View {
     }
 }
 
-/// The large speed in a glass circle. As on Android, the dial has no title: the tab and the unit say that the number is the
+/// The large speed in a circle. As on Android, the dial has no title: the tab and the unit say that the number is the
 /// speed, so the digits can be larger. VoiceOver still hears "Current speed". A dash shows a missing speed at a normal size,
 /// so it does not look like a bar, and without a unit, so it does not look like a value.
+/// The digits are content, so the circle is a standard material of the content layer, not Liquid Glass, which is for
+/// floating controls. The GPS comet on the edge of the circle shows the position accuracy and the direction of travel.
+/// The circle keeps space for the comet in its frame, so the comet does not cover the readings. Without a comet, the
+/// circle has no colour.
 struct SpeedDial: View {
     var speed: Double?
+    var comet: GpsComet?
     @Environment(\.displayFormat) private var format
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         GeometryReader { geometry in
-            let diameter = min(geometry.size.width, geometry.size.height, 320)
+            let diameter = max(0, min(min(geometry.size.width, geometry.size.height) - 2 * SpeedComet.reach, 320))
             VStack(spacing: Space.s1) {
                 if let speed {
                     Text(format.speedNumber(speed))
@@ -141,13 +181,46 @@ struct SpeedDial: View {
             }
             .padding(diameter * (diameter >= 240 ? 0.1 : 0.08))
             .frame(width: diameter, height: diameter)
-            .glassEffect(.regular, in: .circle)
+            .background {
+                // With Increase Contrast, an outline shows the edge of the circle on the backdrop.
+                Circle()
+                    .fill(.regularMaterial)
+                    .overlay { if contrast == .increased { Circle().strokeBorder(.secondary, lineWidth: 1) } }
+                    .shadow(color: .black.opacity(0.08), radius: 24, y: 8)
+                    .accessibilityHidden(true)
+            }
+            // The comet is behind the circle. It is in a separate background, so it does not change the circle size.
+            .background { if let comet { SpeedComet(comet: comet, diameter: diameter) } }
             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
         .frame(minHeight: 120)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(speed.map(format.spokenSpeed) ?? String(localized: "Current speed unavailable"))
         .accessibilityIdentifier("current_speed")
+    }
+}
+
+/// Sets the compass orientation again on each heading change while the Speed tab shows.
+/// A turn of 180 degrees between the two landscape orientations does not change the view size, and UIKit can apply the
+/// rotation after the device orientation notification. The turn changes the heading, so the next heading sets the
+/// correct orientation. This view reads the heading, not the Speed tab, so a heading change does not redraw the tab.
+private struct CompassOrientationFollower: View {
+    var location: LocationService
+    var shown: Bool
+
+    var body: some View {
+        Color.clear
+            .accessibilityHidden(true)
+            .onChange(of: shown ? location.heading : .unavailable) { _, _ in
+                if shown { Self.apply(to: location) }
+            }
+    }
+
+    /// Gives the current interface orientation to the compass.
+    static func apply(to location: LocationService) {
+        guard let orientation = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.effectiveGeometry.interfaceOrientation
+        else { return }
+        location.setCompassOrientation(orientation)
     }
 }
 
@@ -179,43 +252,52 @@ struct Reading: View {
     }
 }
 
-/// The GPS state. The whole card opens GPS details. A fresh position of 5 m or better reduces the card to its bar.
+/// Replaces the spoken label of the view when a label exists.
+private struct SpokenOverride: ViewModifier {
+    var label: Text?
+
+    func body(content: Content) -> some View {
+        if let label { content.accessibilityLabel(label) } else { content }
+    }
+}
+
+/// The GPS state. The whole card opens GPS details. A fresh position of 5 m or better reduces the card to one row:
+/// "GPS", the accuracy, and a chevron.
 struct GpsCard: View {
     var speed: SpeedModel
     var location: LocationService
     var trips: TripController
+    @Environment(\.displayFormat) private var format
 
     var body: some View {
         VStack(spacing: Space.s3) {
             NavigationLink(value: AppRoute.gpsDetails) {
                 if speed.ready {
-                    HStack(spacing: Space.s2) {
-                        AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters, showsLabel: false)
+                    // A row on the backdrop, like the readings above it. The comet on the speed circle shows the accuracy.
+                    HStack(spacing: Space.s3) {
+                        Text("GPS").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        Spacer()
+                        if let accuracy = speed.reading?.accuracyMeters {
+                            Text("±\(format.decimal(accuracy)) m")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
                         Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, Space.s4)
+                    .padding(.horizontal, Space.s2)
                     .frame(minHeight: Size.touch)
-                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .contentShape(.rect)
                     .accessibilityIdentifier("gps_compact")
+                } else if speed.status == .live {
+                    fullCard
                 } else {
-                    GlassCard {
-                        VStack(alignment: .leading, spacing: Space.s2) {
-                            HStack(spacing: Space.s2) {
-                                StatusDot(color: color)
-                                Text(title).font(.headline).accessibilityIdentifier("gps_status")
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                            }
-                            if speed.status == .live {
-                                AccuracyBar(accuracyMeters: speed.reading?.accuracyMeters)
-                            } else {
-                                Text(message).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
+                    fullCard
                 }
             }
             .buttonStyle(.plain)
+            .modifier(SpokenOverride(label: speakingLabel))
             .accessibilityHint(Text("Opens GPS details"))
             .accessibilityIdentifier("gps_card")
             if let action {
@@ -227,6 +309,55 @@ struct GpsCard: View {
                 .accessibilityIdentifier("gps_action")
             }
         }
+    }
+
+    /// The full card. In the live state, it shows the position accuracy as text.
+    private var fullCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: Space.s2) {
+                HStack(spacing: Space.s2) {
+                    StatusDot(color: color)
+                    Text(title).font(.headline).accessibilityIdentifier("gps_status")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                if speed.status == .live {
+                    if let accuracy = speed.reading?.accuracyMeters {
+                        Text("Position accuracy ±\(format.decimal(accuracy)) m")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(message).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// The one sentence that the link speaks in the compact row and the live card. The other states speak their own text.
+    private var speakingLabel: Text? {
+        if speed.ready { return spokenLabel ?? Text("GPS") }
+        if speed.status == .live { return spokenLabel ?? Text(title) }
+        return nil
+    }
+
+    /// One spoken sentence: the position accuracy and, when the device moves, the direction of travel.
+    private var spokenLabel: Text? {
+        guard let reading = speed.reading, let accuracy = reading.accuracyMeters else { return nil }
+        let base = String(localized: "GPS position accuracy ±\(format.decimal(accuracy)) metres.")
+        guard let radians = reading.travelRadians else { return Text(base) }
+        let point: String = switch CompassPoint(radians: radians) {
+        case .north: String(localized: "north")
+        case .northEast: String(localized: "north-east")
+        case .east: String(localized: "east")
+        case .southEast: String(localized: "south-east")
+        case .south: String(localized: "south")
+        case .southWest: String(localized: "south-west")
+        case .west: String(localized: "west")
+        case .northWest: String(localized: "north-west")
+        }
+        return Text(base + " " + String(localized: "Moving \(point)."))
     }
 
     /// Live is success. A state that needs time or an action is a warning. A failure is danger. Paused is neutral.

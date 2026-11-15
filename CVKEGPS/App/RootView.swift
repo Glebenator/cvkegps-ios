@@ -12,21 +12,21 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         let format = AppModel.format(model.settings.values, locale: locale)
-        // The tab bar shows icons only, as on Android and in the owner's design language. VoiceOver reads each tab name.
+        // The tab bar shows the icon and the name of each tab (HIG, Tab bars). Android keeps its icon-only tabs.
         TabView(selection: $model.tab) {
             Tab(value: AppTab.speed) {
                 NavigationStack(path: $model.speedPath) {
                     SpeedView().navigationDestination(for: AppRoute.self, destination: destination)
                 }
             } label: {
-                TabIcon(name: "Speed", symbol: "gauge.with.needle")
+                Label("Speed", systemImage: "gauge.with.needle")
             }
             Tab(value: AppTab.trips) {
                 NavigationStack(path: $model.tripsPath) {
                     TripsView().navigationDestination(for: AppRoute.self, destination: destination)
                 }
             } label: {
-                TabIcon(name: "Trips", symbol: "point.topleft.down.to.point.bottomright.curvepath")
+                Label("Trips", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -36,17 +36,6 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.trips.accessShown }, set: { if !$0 { model.trips.dismissAccess() } })) {
             // An opaque background: the sheet is mostly text, and glass lets the screen behind show through it.
             AccessSheet().presentationDetents([.medium, .large]).presentationBackground(Color(uiColor: .systemBackground))
-        }
-        .confirmationDialog("Change activity", isPresented: Binding(get: { model.trips.activityChoice != nil },
-                                                                    set: { if !$0 { model.trips.activityChoice = nil } }),
-                            titleVisibility: .visible, presenting: model.trips.activityChoice) { choice in
-            Button("Automatic") { model.trips.chooseActivity(nil, for: choice) }
-            ForEach(TripMode.choices, id: \.self) { mode in
-                Button(mode.title) { model.trips.chooseActivity(mode, for: choice) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("The app estimates the activity from your GPS speed. Some activities have similar speeds, for example car and transit. Select the correct activity if necessary.")
         }
         .confirmationDialog("Delete this trip?", isPresented: Binding(get: { model.trips.deleteCandidate != nil },
                                                                       set: { if !$0 { model.trips.deleteCandidate = nil } }),
@@ -59,6 +48,17 @@ struct RootView: View {
             Button("Cancel", role: .cancel) {}
         } message: { _ in
             Text("This removes the saved route and its measurements from this device.")
+        }
+        // A physical confirmation when a trip starts, pauses, resumes, or stops, also from the recording bar.
+        .sensoryFeedback(trigger: model.recorder.state.trip?.status) { old, new in
+            switch (old, new) {
+            case (nil, .recording?): .start
+            case (_, .finished?): .stop
+            case (.finished?, nil): nil
+            case (_?, nil): .stop
+            case let (before?, after?) where before != after: .impact(weight: .light)
+            default: nil
+            }
         }
         .background(TouchObserver { screen.touched() })
         .onChange(of: scenePhase, initial: true) { _, phase in model.setForeground(phase == .active) }
@@ -206,36 +206,28 @@ private struct StartBar: View {
 
     var body: some View {
         HStack(spacing: Space.s2) {
+            // A filled system button, not glass: the bar is already glass (HIG, Liquid Glass). It gets the system press
+            // state and the Increase Contrast colours.
             Button { model.trips.start() } label: {
                 Label("Start trip", systemImage: "record.circle")
                     .font(.body.weight(.semibold))
                     .lineLimit(1)
-                    .padding(.horizontal, Space.s4)
-                    .frame(minHeight: 44)
-                    .foregroundStyle(.white)
-                    .background(Palette.accentFill, in: .capsule)
-                    .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .tint(Palette.accentFill)
             .accessibilityIdentifier("trip_start")
             if placement != .inline {
                 Spacer(minLength: Space.s2)
                 // As on Android: the activity icon and a short name. The icon shows the chosen activity or the estimate.
                 // VoiceOver hears the full choice.
-                Button { model.trips.activityChoice = .next } label: {
-                    HStack(spacing: Space.s2) {
-                        Image(systemName: (selected ?? estimate).symbol).foregroundStyle(.primary)
-                        Text(selected?.title ?? String(localized: "Automatic")).lineLimit(1)
-                        Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .frame(minHeight: 44)
-                    .contentShape(.rect)
+                ActivityMenu(selection: selected, spoken: TripMode.spokenChoice(selected: selected, estimate: estimate),
+                             hint: "Changes the activity of the next trip",
+                             choose: { model.trips.chooseActivity($0, for: .next) }) {
+                    ActivityMenuLabel(text: selected?.title ?? String(localized: "Automatic"), symbol: (selected ?? estimate).symbol)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(Text(TripMode.spokenChoice(selected: selected, estimate: estimate)))
-                .accessibilityHint(Text("Changes the activity of the next trip"))
-                .accessibilityIdentifier("activity_chip")
             }
         }
         .padding(.leading, Space.s1)
@@ -245,17 +237,6 @@ private struct StartBar: View {
 
     private var selected: TripMode? { model.trips.selectedMode }
     private var estimate: TripMode { model.location.activityEstimate.fresh(at: MonotonicClock.nanos()) }
-}
-
-/// A tab bar icon without visible text. The name is for VoiceOver and Voice Control.
-private struct TabIcon: View {
-    var name: LocalizedStringKey
-    var symbol: String
-
-    var body: some View {
-        Label { Text(name) } icon: { Image(systemName: symbol) }
-            .labelStyle(.iconOnly)
-    }
 }
 
 /// A button symbol in the recording bar. The touch target is 44 points. In the full bar, a light circle shows the target.

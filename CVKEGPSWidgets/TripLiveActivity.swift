@@ -38,12 +38,13 @@ struct TripLiveActivity: Widget {
                 Image(systemName: context.state.recording ? "record.circle.fill" : "pause.circle.fill")
                     .foregroundStyle(context.state.recording ? .red : .secondary)
             } compactTrailing: {
-                TripTime(state: context.state).monospacedDigit().frame(maxWidth: 56)
+                CompactTime(state: context.state)
             } minimal: {
                 Image(systemName: context.state.noSignal ? "location.slash.fill" : (context.state.recording ? "record.circle.fill" : "pause.circle.fill"))
                     .foregroundStyle(context.state.recording ? .red : .secondary)
             }
-            .keylineTint(.red)
+            // The keyline follows the state: red while recording, grey while paused.
+            .keylineTint(context.state.recording ? .red : .gray)
         }
     }
 }
@@ -73,12 +74,23 @@ private struct StatusLabel: View {
 
     var body: some View {
         Label {
-            Text(state.recording ? (state.noSignal ? "No GPS signal" : "Recording trip") : "Trip paused")
+            // The same words as the recording bar in the app.
+            Text(state.recording ? (state.noSignal ? "No GPS signal" : "Recording") : "Paused")
                 .font(.headline)
         } icon: {
             Image(systemName: state.recording ? (state.noSignal ? "location.slash.fill" : "record.circle.fill") : "pause.circle.fill")
                 .foregroundStyle(state.recording ? .red : .secondary)
         }
+    }
+}
+
+/// The time beside the island. The HIG asks for a leading view only when the island is limited in width (iPhone in
+/// landscape), but `isDynamicIslandLimitedInWidth` is not in the iOS 26.2 SDK, so the time keeps a maximum width.
+private struct CompactTime: View {
+    var state: TripActivityAttributes.ContentState
+
+    var body: some View {
+        TripTime(state: state).monospacedDigit().frame(maxWidth: 56)
     }
 }
 

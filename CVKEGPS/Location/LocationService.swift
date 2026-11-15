@@ -2,6 +2,7 @@ import CoreLocation
 import CVKEGPSCore
 import Foundation
 import Observation
+import UIKit
 
 /// Core Location access. The Speed tab and a recording trip share one location request. The request uses the strictest need
 /// of the active features. Location runs only while the app is visible or a trip records. A paused trip stops it.
@@ -25,6 +26,8 @@ final class LocationService: NSObject, RecordingLocationSource {
     private(set) var running = false
     /// The requested accuracy, for GPS details.
     private(set) var highAccuracy = false
+    /// The direction of the top of the phone, from the compass. It is unavailable while the compass is off or cannot measure.
+    private(set) var heading: PhoneHeading = .unavailable
 
     @ObservationIgnored private let manager = CLLocationManager()
     @ObservationIgnored private let estimator = ActivityEstimator()
@@ -255,9 +258,47 @@ final class LocationService: NSObject, RecordingLocationSource {
         refresh()
     }
 
+    /// Starts or stops the compass. The compass uses this manager, because Core Location gives a true heading only
+    /// to a manager that also runs location updates. A stopped compass shows no heading.
+    func compass(_ on: Bool) {
+        if on {
+            guard CLLocationManager.headingAvailable() else { return }
+            manager.headingFilter = 1
+            manager.startUpdatingHeading()
+        } else {
+            manager.stopUpdatingHeading()
+            heading = .unavailable
+        }
+    }
+
+    /// Tells the compass which way the interface faces. The device orientation is the reverse of the interface orientation in landscape.
+    /// The view calls this on each heading change, so it does nothing when the orientation is the same.
+    func setCompassOrientation(_ orientation: UIInterfaceOrientation) {
+        let device: CLDeviceOrientation = switch orientation {
+        case .portraitUpsideDown: .portraitUpsideDown
+        case .landscapeLeft: .landscapeRight
+        case .landscapeRight: .landscapeLeft
+        default: .portrait
+        }
+        guard manager.headingOrientation != device else { return }
+        manager.headingOrientation = device
+    }
+
+    private func updated(trueHeading: Double, accuracy: Double) {
+        // The 1 degree filter sends nothing while the heading is steady, so a heading does not expire with time.
+        if accuracy >= 0, trueHeading >= 0 {
+            heading = .current(trueRadians: trueHeading * .pi / 180,
+                               accuracyRadians: accuracy * .pi / 180)
+        } else {
+            heading = .unavailable
+        }
+    }
+
     private func failed(_ error: Error) {
         guard let error = error as? CLError else { return }
         switch error.code {
+        case .headingFailure:
+            heading = .unavailable
         case .denied:
             authorization = manager.authorizationStatus
             refresh()
@@ -274,6 +315,17 @@ extension LocationService: CLLocationManagerDelegate {
     // The manager was made on the main thread, so it calls its delegate on the main thread.
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         MainActor.assumeIsolated { deliver(locations) }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        // CLHeading is not Sendable, so the callback reads its two values first.
+        let trueHeading = newHeading.trueHeading
+        let accuracy = newHeading.headingAccuracy
+        MainActor.assumeIsolated { updated(trueHeading: trueHeading, accuracy: accuracy) }
+    }
+
+    nonisolated func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool {
+        false
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

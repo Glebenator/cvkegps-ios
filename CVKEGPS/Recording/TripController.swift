@@ -36,8 +36,6 @@ final class TripController {
     private(set) var asked = false
     /// The activity that the user chose for the next trip. Nil means automatic.
     var selectedMode: TripMode?
-    /// The activity choice that shows.
-    var activityChoice: ActivityChoice?
     /// The trip that the user asked to delete. A confirmation shows.
     var deleteCandidate: String?
     /// A trip that the user resumed from its saved screen. The live map opens when the recorder resumes it.
